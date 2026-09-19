@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-stone-950: #060b18; /* Deep midnight dark blue */
+  --color-stone-900: #0d162d; /* Elegant dark blue container/card */
+  --color-stone-850: #111d3a; /* Elevated dark blue surface */
+  --color-stone-800: #17264a; /* Dark blue border / divider */
+  --color-stone-700: #203463; /* Subtle blue border */
+  --color-stone-600: #384f80; /* Muted slate blue */
+  --color-stone-500: #64748b; /* Slate text */
+  --color-stone-400: #94a3b8; /* Secondary text */
+  --color-stone-300: #cbd5e1; /* Body text */
+  --color-stone-200: #e2e8f0; /* Crisp text */
+  --color-stone-100: #f1f5f9; /* Light high-contrast text */
+  --color-stone-50: #f8fafc;  /* Purest off-white */
+}
+
+@layer base {
+  :root {
+    --font-editorial: 'Newsreader', Georgia, serif;
+    --font-arabic: 'Cairo', 'Tajawal', system-ui, sans-serif;
+    --font-modern: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    color-scheme: dark;
+  }
+
+  html {
+    background-color: #060b18;
+    color: #f1f5f9;
+  }
+
+  body {
+    background-color: #060b18;
+    color: #f1f5f9;
+  }
+
+  /* Deep rich dark blue mode across all screens and cards */
+  .dark {
+    color-scheme: dark;
+    background-color: #060b18;
+    color: #f1f5f9;
+  }
+
+  [dir="rtl"] {
+    font-family: var(--font-arabic);
+  }
+
+  [dir="ltr"] {
+    font-family: var(--font-modern);
+  }
+}
+
+.font-editorial {
+  font-family: var(--font-editorial);
+}
+
+.font-arabic {
+  font-family: var(--font-arabic);
+}
+
+.font-modern {
+  font-family: var(--font-modern);
+}
+
+/* Newspaper editorial styles */
+.newspaper-dropcap::first-letter {
+  font-size: 3.5rem;
+  line-height: 0.85;
+  font-weight: 800;
+  float: left;
+  margin-right: 0.5rem;
+  color: #b91c1c;
+}
+
+[dir="rtl"] .newspaper-dropcap::first-letter {
+  float: right;
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+/* Custom smooth scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #1e294b;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #2563eb;
+}
+
+::selection {
+  background-color: #1d4ed8;
+  color: #ffffff;
+}

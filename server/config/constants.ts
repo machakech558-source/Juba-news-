@@ -1,0 +1,120 @@
+export const ROLES = {
+  SUPER_ADMIN: 'SUPER_ADMIN',
+  EDITOR: 'EDITOR',
+  AUTHOR: 'AUTHOR',
+  MODERATOR: 'MODERATOR',
+  MEDIA_MANAGER: 'MEDIA_MANAGER',
+  USER: 'USER',
+} as const;
+
+export type RoleType = keyof typeof ROLES;
+
+export const PERMISSIONS = {
+  // Articles
+  ARTICLES_READ: 'articles.read',
+  ARTICLES_CREATE: 'articles.create',
+  ARTICLES_UPDATE: 'articles.update',
+  ARTICLES_DELETE: 'articles.delete',
+  ARTICLES_PUBLISH: 'articles.publish',
+  ARTICLES_UNPUBLISH: 'articles.unpublish',
+
+  // Categories
+  CATEGORIES_MANAGE: 'categories.manage',
+
+  // Comments
+  COMMENTS_READ: 'comments.read',
+  COMMENTS_MODERATE: 'comments.moderate',
+  COMMENTS_DELETE: 'comments.delete',
+
+  // Media
+  MEDIA_UPLOAD: 'media.upload',
+  MEDIA_UPDATE: 'media.update',
+  MEDIA_DELETE: 'media.delete',
+
+  // Users
+  USERS_READ: 'users.read',
+  USERS_MANAGE: 'users.manage',
+
+  // Admins
+  ADMINS_READ: 'admins.read',
+  ADMINS_CREATE: 'admins.create',
+  ADMINS_UPDATE: 'admins.update',
+  ADMINS_DELETE: 'admins.delete',
+
+  // Settings
+  SETTINGS_READ: 'settings.read',
+  SETTINGS_UPDATE: 'settings.update',
+
+  // Audit Logs
+  AUDIT_LOGS_READ: 'audit_logs.read',
+} as const;
+
+export type PermissionType = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
+
+export const ROLE_PERMISSIONS: Record<RoleType, PermissionType[]> = {
+  SUPER_ADMIN: Object.values(PERMISSIONS),
+  EDITOR: [
+    PERMISSIONS.ARTICLES_READ,
+    PERMISSIONS.ARTICLES_CREATE,
+    PERMISSIONS.ARTICLES_UPDATE,
+    PERMISSIONS.ARTICLES_DELETE,
+    PERMISSIONS.ARTICLES_PUBLISH,
+    PERMISSIONS.ARTICLES_UNPUBLISH,
+    PERMISSIONS.CATEGORIES_MANAGE,
+    PERMISSIONS.COMMENTS_READ,
+    PERMISSIONS.COMMENTS_MODERATE,
+    PERMISSIONS.MEDIA_UPLOAD,
+    PERMISSIONS.MEDIA_UPDATE,
+    PERMISSIONS.USERS_READ,
+  ],
+  AUTHOR: [
+    PERMISSIONS.ARTICLES_READ,
+    PERMISSIONS.ARTICLES_CREATE,
+    PERMISSIONS.ARTICLES_UPDATE,
+    PERMISSIONS.MEDIA_UPLOAD,
+  ],
+  MODERATOR: [
+    PERMISSIONS.ARTICLES_READ,
+    PERMISSIONS.COMMENTS_READ,
+    PERMISSIONS.COMMENTS_MODERATE,
+    PERMISSIONS.COMMENTS_DELETE,
+  ],
+  MEDIA_MANAGER: [
+    PERMISSIONS.MEDIA_UPLOAD,
+    PERMISSIONS.MEDIA_UPDATE,
+    PERMISSIONS.MEDIA_DELETE,
+    PERMISSIONS.ARTICLES_READ,
+  ],
+  USER: [],
+};
+
+export const ARTICLE_STATUS = {
+  DRAFT: 'DRAFT',
+  REVIEW: 'REVIEW',
+  SCHEDULED: 'SCHEDULED',
+  PUBLISHED: 'PUBLISHED',
+  ARCHIVED: 'ARCHIVED',
+} as const;
+
+export type ArticleStatusType = keyof typeof ARTICLE_STATUS;
+
+export const COMMENT_STATUS = {
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+  SPAM: 'SPAM',
+} as const;
+
+export const ERROR_CODES = {
+  UNAUTHORIZED: 'UNAUTHORIZED',
+  FORBIDDEN: 'FORBIDDEN',
+  NOT_FOUND: 'NOT_FOUND',
+  BAD_REQUEST: 'BAD_REQUEST',
+  VALIDATION_ERROR: 'VALIDATION_ERROR',
+  TOO_MANY_REQUESTS: 'TOO_MANY_REQUESTS',
+  CONFLICT: 'CONFLICT',
+  INTERNAL_ERROR: 'INTERNAL_ERROR',
+  REQUIRES_2FA: 'REQUIRES_2FA',
+  INVALID_TOKEN: 'INVALID_TOKEN',
+  TOKEN_EXPIRED: 'TOKEN_EXPIRED',
+} as const;

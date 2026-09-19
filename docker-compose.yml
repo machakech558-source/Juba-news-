@@ -1,0 +1,38 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=postgresql://jubanews_user:SecurePostgresPass2026@postgres:5432/jubanews_db
+      - JWT_SECRET=juba-news-production-ultra-secure-jwt-secret-key-2026
+      - JWT_REFRESH_SECRET=juba-news-production-ultra-secure-refresh-key-2026
+      - CORS_ORIGIN=*
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: jubanews_user
+      POSTGRES_PASSWORD: SecurePostgresPass2026
+      POSTGRES_DB: jubanews_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jubanews_user -d jubanews_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

@@ -1,0 +1,6 @@
+{
+  "name": "جوبا نيوز | صحيفة جنوب السودان وأفريقيا المستقلة",
+  "description": "جوبا نيوز (Juba News) - صحيفة جنوب السودان وأفريقيا المستقلة. رئيس التحرير: أنور يل يوال. عينك على جنوب السودان، إفريقيا والعالم.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
