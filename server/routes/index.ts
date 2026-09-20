@@ -7,6 +7,7 @@ import { FacebookController } from '../controllers/facebookController';
 import { PublicController } from '../controllers/publicController';
 import { ArticleController } from '../controllers/articleController';
 import { AiNewsController } from '../controllers/aiNewsController';
+import { N8nController } from '../controllers/n8nController';
 import { authenticateAdmin, requirePermission } from '../middleware/auth';
 import { PERMISSIONS } from '../config/constants';
 import { rateLimiter } from '../middleware/security';
@@ -55,7 +56,19 @@ apiRouter.post('/v1/ai/generate-news', authenticateAdmin, AiNewsController.gener
 apiRouter.post('/ai/generate-news', authenticateAdmin, AiNewsController.generate);
 
 // ==============================================================================
-// 4. Mount Existing V1 APIs for Backward Compatibility
+// 4. n8n Automation Engine & Facebook Instant Transfer Endpoints
+// ==============================================================================
+// Webhook receivers for n8n workflows (auto-converts Facebook post into published news)
+apiRouter.post('/integrations/n8n/facebook-post', N8nController.receiveFacebookPost);
+apiRouter.post('/webhooks/n8n', N8nController.receiveFacebookPost);
+// Pre-configured workflow JSON for n8n import
+apiRouter.get('/integrations/n8n/workflow', N8nController.getWorkflow);
+// Admin testing and key management
+apiRouter.post('/admin/integrations/n8n/test', authenticateAdmin, N8nController.testN8nPost);
+apiRouter.post('/admin/integrations/n8n/regenerate-key', authenticateAdmin, requirePermission(PERMISSIONS.SETTINGS_UPDATE), N8nController.regenerateApiKey);
+
+// ==============================================================================
+// 5. Mount Existing V1 APIs for Backward Compatibility
 // ==============================================================================
 apiRouter.use('/v1/auth/admin', authRoutes);
 apiRouter.use('/v1/auth', authRoutes);

@@ -174,6 +174,8 @@ export interface FacebookSettings {
   metaPageId: string;
   metaPageName: string;
   pagePermalink: string;
+  n8nWebhookSecret?: string;
+  n8nAutoPublish?: boolean;
   lastSyncAt?: string;
   updatedAt: string;
 }

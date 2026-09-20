@@ -130,6 +130,8 @@ export interface DbFacebookSettings {
   metaPageId: string;
   metaPageName: string;
   pagePermalink: string;
+  n8nWebhookSecret?: string;
+  n8nAutoPublish?: boolean;
   lastSyncAt?: string;
   updatedAt: string;
 }
@@ -224,6 +226,8 @@ class DatabaseStore {
     metaPageId: process.env.META_PAGE_ID || '108429588219424',
     metaPageName: 'Juba News - جوبا نيوز',
     pagePermalink: 'https://www.facebook.com/share/1UpeZiXU5k/',
+    n8nWebhookSecret: process.env.N8N_WEBHOOK_SECRET || 'juba_n8n_sec_2025',
+    n8nAutoPublish: true,
     lastSyncAt: new Date(Date.now() - 1800000).toISOString(),
     updatedAt: new Date().toISOString(),
   };

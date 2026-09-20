@@ -1228,6 +1228,41 @@ class DataService {
     ];
   }
 
+  // --- n8n Automation Engine Integration Methods ---
+
+  async getN8nWorkflow(): Promise<any> {
+    try {
+      const res = await fetch('/api/integrations/n8n/workflow');
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (err) {
+      console.warn('Failed to fetch n8n workflow template:', err);
+    }
+    return null;
+  }
+
+  async testN8nPost(payload?: { customMessage?: string; customImage?: string; customUrl?: string }): Promise<any> {
+    const res = await fetch('/api/admin/integrations/n8n/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload || {}),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'Failed to simulate n8n post transfer');
+    return json;
+  }
+
+  async regenerateN8nApiKey(): Promise<string> {
+    const res = await fetch('/api/admin/integrations/n8n/regenerate-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'Failed to regenerate n8n key');
+    return json.apiKey;
+  }
+
   // --- Editorial Actions: Approve / Publish / Reject ---
 
   approveArticle(articleId: string, adminUser?: UserProfile): boolean {

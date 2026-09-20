@@ -28,12 +28,14 @@ import {
   Globe,
   PenTool,
   Hash,
-  Bookmark
+  Bookmark,
+  Cpu
 } from 'lucide-react';
 import { useThemeLanguage } from '../../contexts/ThemeLanguageContext';
 import { useRouter } from '../../contexts/RouterContext';
 import { dataService } from '../../services/dataService';
 import { useAuth } from '../../contexts/AuthContext';
+import { N8nAutomationTab } from '../../components/admin/N8nAutomationTab';
 import type { Article, Category, FacebookPost, FacebookSettings, SyncLog, FacebookSyncResult } from '../../types';
 
 export const AiNewsAutomationPage: React.FC = () => {
@@ -41,9 +43,9 @@ export const AiNewsAutomationPage: React.FC = () => {
   const { navigate } = useRouter();
   const { currentUser } = useAuth();
 
-  // Active section tab: A to F + G
+  // Active section tab: A to G
   const [activeTab, setActiveTab] = useState<
-    'imports' | 'drafts' | 'published' | 'failed' | 'logs' | 'settings' | 'generator'
+    'imports' | 'drafts' | 'published' | 'failed' | 'logs' | 'settings' | 'generator' | 'n8n'
   >('drafts');
 
   // Loading & state
@@ -490,6 +492,13 @@ export const AiNewsAutomationPage: React.FC = () => {
 
           <div className="flex flex-wrap items-center gap-3">
             <button
+              onClick={() => setActiveTab('n8n')}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold shadow-lg shadow-indigo-600/30 transition-all active:scale-95 cursor-pointer"
+            >
+              <Cpu className="w-4 h-4 text-indigo-200" />
+              <span>{language === 'ar' ? '⚡ أتمتة n8n (نقل فوري)' : '⚡ n8n Automation'}</span>
+            </button>
+            <button
               onClick={() => setAiGenOpen(true)}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-sm font-semibold shadow-lg shadow-purple-600/30 transition-all active:scale-95 cursor-pointer"
             >
@@ -696,6 +705,21 @@ export const AiNewsAutomationPage: React.FC = () => {
         >
           <Sliders className="w-4 h-4 text-indigo-600" />
           {language === 'ar' ? 'F. الإعدادات والربط' : 'F. Settings'}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('n8n')}
+          className={`px-4 py-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-colors ${
+            activeTab === 'n8n'
+              ? 'border-indigo-600 text-indigo-700 dark:text-indigo-400 bg-indigo-50/70 dark:bg-indigo-950/40'
+              : 'border-transparent text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Cpu className="w-4 h-4 text-indigo-600" />
+          <span>{language === 'ar' ? 'G. أتمتة n8n (نقل فوري)' : 'G. n8n Automation Engine'}</span>
+          <span className="px-1.5 py-0.5 rounded text-[10px] bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-extrabold uppercase tracking-wider">
+            {language === 'ar' ? 'مباشر' : 'Live'}
+          </span>
         </button>
       </div>
 
@@ -1762,6 +1786,15 @@ export const AiNewsAutomationPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* SECTION G: n8n AUTOMATION ENGINE & INSTANT FACEBOOK TRANSFER */}
+      {activeTab === 'n8n' && (
+        <N8nAutomationTab
+          fbSettings={fbSettings}
+          onSettingsUpdated={setFbSettings}
+          onRefreshData={loadAllData}
+        />
       )}
 
       {/* MODAL: MANUAL SYNC SUMMARY REPORT */}

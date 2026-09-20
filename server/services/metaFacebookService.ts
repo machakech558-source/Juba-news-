@@ -410,7 +410,7 @@ Respond ONLY with valid JSON matching this exact structure:
    */
   public static async importSinglePost(
     post: RawFacebookPost,
-    options: { manual?: boolean; source?: 'WEBHOOK' | 'MANUAL' } = {}
+    options: { manual?: boolean; source?: 'WEBHOOK' | 'MANUAL' | 'N8N'; forcePublish?: boolean } = {}
   ): Promise<{ status: 'imported' | 'skipped' | 'failed'; article?: DbArticle; error?: string }> {
     const fbPostId = post.id;
     if (!fbPostId) {
@@ -446,9 +446,11 @@ Respond ONLY with valid JSON matching this exact structure:
     try {
       const aiResult = await this.processPostWithAi(post);
 
-      // 4. Create Draft Article (or Published if AutoPublish explicitly ON)
+      // 4. Create Article (Published if AutoPublish explicitly ON or forcePublish)
       const articleId = `art-fb-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-      const isAutoPublish = db.facebookSettings.autoPublish === true;
+      const isAutoPublish = options.forcePublish !== undefined
+        ? Boolean(options.forcePublish)
+        : db.facebookSettings.autoPublish === true;
       const articleStatus = isAutoPublish ? ARTICLE_STATUS.PUBLISHED : ARTICLE_STATUS.DRAFT;
 
       const newArticle: DbArticle = {
@@ -500,6 +502,19 @@ Respond ONLY with valid JSON matching this exact structure:
       postRecord.generatedCategory = newArticle.categoryId;
       postRecord.updatedAt = new Date().toISOString();
       db.saveFacebookPost(postRecord);
+
+      if (options.source === 'N8N') {
+        db.addSyncLog({
+          id: `sync-n8n-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          type: 'N8N_AUTOMATION',
+          status: 'SUCCESS',
+          postsFetched: 1,
+          postsImported: 1,
+          postsSkipped: 0,
+          details: `تم استلام ونشر منشور فورياً عبر أتمتة n8n: "${newArticle.titleAr}" [${newArticle.status}]`,
+        });
+      }
 
       return { status: 'imported', article: newArticle };
     } catch (err: any) {
