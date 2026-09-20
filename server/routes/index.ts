@@ -6,6 +6,7 @@ import docsRoutes from './v1/docsRoutes';
 import { FacebookController } from '../controllers/facebookController';
 import { PublicController } from '../controllers/publicController';
 import { ArticleController } from '../controllers/articleController';
+import { AiNewsController } from '../controllers/aiNewsController';
 import { authenticateAdmin, requirePermission } from '../middleware/auth';
 import { PERMISSIONS } from '../config/constants';
 import { rateLimiter } from '../middleware/security';
@@ -48,6 +49,10 @@ apiRouter.post('/admin/facebook/posts/:id/reprocess', authenticateAdmin, require
 apiRouter.get('/admin/facebook/settings', authenticateAdmin, FacebookController.getSettings);
 apiRouter.put('/admin/facebook/settings', authenticateAdmin, requirePermission(PERMISSIONS.SETTINGS_UPDATE), FacebookController.updateSettings);
 apiRouter.get('/admin/sync/logs', authenticateAdmin, FacebookController.getSyncLogs);
+
+// AI News Generation & Automatic Dispatch Endpoints
+apiRouter.post('/v1/ai/generate-news', authenticateAdmin, AiNewsController.generate);
+apiRouter.post('/ai/generate-news', authenticateAdmin, AiNewsController.generate);
 
 // ==============================================================================
 // 4. Mount Existing V1 APIs for Backward Compatibility

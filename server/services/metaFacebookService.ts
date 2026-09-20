@@ -282,46 +282,70 @@ Respond ONLY with valid JSON matching this exact structure:
   "isBreaking": false
 }`;
 
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: prompt,
-          config: {
-            responseMimeType: 'application/json',
-          },
-        });
+        let parsed: any = null;
+        const candidateModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+        for (const model of candidateModels) {
+          try {
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI timeout')), 7000));
+            const generatePromise = ai.models.generateContent({
+              model,
+              contents: prompt,
+              config: {
+                responseMimeType: 'application/json',
+              },
+            });
+            const response: any = await Promise.race([generatePromise, timeoutPromise]);
 
-        const text = response.text || '';
-        const parsed = JSON.parse(text);
+            const text = (response.text || '').trim();
+            if (text) {
+              try {
+                parsed = JSON.parse(text);
+              } catch {
+                const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+                try {
+                  parsed = JSON.parse(cleaned);
+                } catch {
+                  parsed = null;
+                }
+              }
+            }
+            if (parsed) break;
+          } catch (modelErr) {
+            console.warn(`[MetaFacebookService] Model ${model} error, trying next:`, modelErr);
+          }
+        }
 
-        return {
-          title: parsed.title || parsed.titleAr || 'خبر عاجل من جوبا نيوز',
-          titleAr: parsed.titleAr || parsed.title || 'خبر عاجل من جوبا نيوز',
-          titleEn: parsed.titleEn || 'Breaking News from Juba News',
-          slug: (parsed.slug || `juba-news-${Date.now()}`).toLowerCase().replace(/[^a-z0-9-]/g, '-'),
-          summary: parsed.summary || parsed.summaryAr || rawMessage.slice(0, 150),
-          summaryAr: parsed.summaryAr || parsed.summary || rawMessage.slice(0, 150),
-          summaryEn: parsed.summaryEn || 'News summary from Juba News editorial desk.',
-          content: parsed.content || parsed.contentAr || rawMessage,
-          contentAr: parsed.contentAr || parsed.content || rawMessage,
-          contentEn: parsed.contentEn || rawMessage,
-          category: parsed.category || 'South Sudan',
-          categorySlug: parsed.categorySlug || 'south-sudan',
-          tags: Array.isArray(parsed.tags) && parsed.tags.length > 0 ? parsed.tags : ['South Sudan', 'Juba News', 'Facebook'],
-          seoTitle: parsed.seoTitle || parsed.titleAr || 'Juba News Update',
-          seoDescription: parsed.seoDescription || (parsed.summaryAr || rawMessage).slice(0, 160),
-          location: parsed.location || 'جوبا، جنوب السودان',
-          people: Array.isArray(parsed.people) ? parsed.people : [],
-          organizations: Array.isArray(parsed.organizations) ? parsed.organizations : ['Juba News'],
-          source: 'Facebook',
-          sourceUrl: permalink,
-          facebookPostId: post.id,
-          status: db.facebookSettings.autoPublish ? 'published' : 'draft',
-          confidence: 0.95,
-          featuredImage: image,
-          isBreaking: Boolean(parsed.isBreaking),
-        };
+        if (parsed && (parsed.title || parsed.titleAr || parsed.titleEn)) {
+          return {
+            title: parsed.title || parsed.titleAr || 'خبر عاجل من جوبا نيوز',
+            titleAr: parsed.titleAr || parsed.title || 'خبر عاجل من جوبا نيوز',
+            titleEn: parsed.titleEn || 'Breaking News from Juba News',
+            slug: (parsed.slug || `juba-news-${Date.now()}`).toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+            summary: parsed.summary || parsed.summaryAr || rawMessage.slice(0, 150),
+            summaryAr: parsed.summaryAr || parsed.summary || rawMessage.slice(0, 150),
+            summaryEn: parsed.summaryEn || 'News summary from Juba News editorial desk.',
+            content: parsed.content || parsed.contentAr || rawMessage,
+            contentAr: parsed.contentAr || parsed.content || rawMessage,
+            contentEn: parsed.contentEn || rawMessage,
+            category: parsed.category || 'South Sudan',
+            categorySlug: parsed.categorySlug || 'south-sudan',
+            tags: Array.isArray(parsed.tags) && parsed.tags.length > 0 ? parsed.tags : ['South Sudan', 'Juba News', 'Facebook'],
+            seoTitle: parsed.seoTitle || parsed.titleAr || 'Juba News Update',
+            seoDescription: parsed.seoDescription || (parsed.summaryAr || rawMessage).slice(0, 160),
+            location: parsed.location || 'جوبا، جنوب السودان',
+            people: Array.isArray(parsed.people) ? parsed.people : [],
+            organizations: Array.isArray(parsed.organizations) ? parsed.organizations : ['Juba News'],
+            source: 'Facebook',
+            sourceUrl: permalink,
+            facebookPostId: post.id,
+            status: db.facebookSettings.autoPublish ? 'published' : 'draft',
+            confidence: 0.95,
+            featuredImage: image,
+            isBreaking: Boolean(parsed.isBreaking),
+          };
+        }
       } catch (err) {
-        console.warn('[MetaFacebookService] AI generation failed or timed out, using fallback heuristics:', err);
+        console.warn('[MetaFacebookService] AI generation failed, using fallback heuristics:', err);
       }
     }
 

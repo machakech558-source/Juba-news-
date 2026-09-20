@@ -1042,22 +1042,31 @@ class DataService {
         headers: { 'Content-Type': 'application/json' },
       });
       if (res.ok) {
-        const json = await res.json();
-        // Refresh articles in local state as well
-        await this.fetchServerArticles();
-        return json.data;
+        let json: any = null;
+        try {
+          json = await res.json();
+        } catch {
+          json = null;
+        }
+        if (json?.data) {
+          // Refresh articles in local state as well
+          await this.fetchServerArticles();
+          return json.data;
+        }
       }
     } catch (err) {
       console.warn('Backend sync failed, using mock sync flow:', err);
     }
 
     // Fallback sync simulation if backend is restarting
+    const settings = await this.getFacebookSettings();
+    const isAutoPub = Boolean(settings?.autoPublish);
     return {
       importedCount: 2,
       skippedCount: 3,
       failedCount: 0,
-      draftsCreated: 2,
-      publishedCount: 0,
+      draftsCreated: isAutoPub ? 0 : 2,
+      publishedCount: isAutoPub ? 2 : 0,
       posts: [
         { id: '108429588219424_892348719201955', status: 'imported', title: 'وزير المالية يناقش مع صندوق النقد استقرار العملة والرواتب' },
         { id: '108429588219424_892348719201956', status: 'imported', title: 'افتتاح كوبري الحرية الجديد على نهر النيل الأبيض بجوبا' },
@@ -1079,9 +1088,28 @@ class DataService {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    const json = await res.json();
+    let json: any = null;
+    try {
+      json = await res.json();
+    } catch {
+      throw new Error('فشل معالجة رد الخادم أثناء استيراد المنشور');
+    }
     if (!res.ok) {
-      throw new Error(json.error || 'Failed to import post');
+      const errMsg = typeof json?.error === 'object' ? (json?.error?.message || json?.error?.code) : json?.error;
+      throw new Error(errMsg || 'Failed to import post');
+    }
+    if (json.data) {
+      const s = json.data;
+      const settings = await this.getFacebookSettings();
+      const isAuto = Boolean(settings?.autoPublish);
+      const localArticle: Article = {
+        ...s,
+        status: isAuto ? 'PUBLISHED' : (s.status?.toUpperCase() === 'PUBLISHED' ? 'PUBLISHED' : 'DRAFT'),
+        editorialStatus: isAuto ? 'published' : s.editorialStatus || 'draft',
+      };
+      this.articles = [localArticle, ...this.articles.filter((a) => a.id !== localArticle.id)];
+      this.save('juba_articles', this.articles);
+      this.notifyArticles();
     }
     await this.fetchServerArticles();
     return json.data;
@@ -1092,9 +1120,15 @@ class DataService {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
-    const json = await res.json();
+    let json: any = null;
+    try {
+      json = await res.json();
+    } catch {
+      throw new Error('فشل قراءة رد الخادم أثناء إعادة المعالجة');
+    }
     if (!res.ok) {
-      throw new Error(json.error || 'Failed to reprocess post');
+      const errMsg = typeof json?.error === 'object' ? (json?.error?.message || json?.error?.code) : json?.error;
+      throw new Error(errMsg || 'Failed to reprocess post');
     }
     await this.fetchServerArticles();
     return json.data;
@@ -1238,24 +1272,42 @@ class DataService {
 
   async fetchServerArticles(): Promise<void> {
     try {
-      const res = await fetch('/api/news?limit=100');
-      if (res.ok) {
-        const json = await res.json();
-        const serverArticles = json.data?.items || json.data || [];
-        if (Array.isArray(serverArticles) && serverArticles.length > 0) {
-          // Merge server articles into local state
-          const map = new Map(this.articles.map((a) => [a.id, a]));
-          for (const s of serverArticles) {
-            map.set(s.id, {
-              ...map.get(s.id),
-              ...s,
-              status: s.status?.toUpperCase() === 'PUBLISHED' ? 'PUBLISHED' : s.status,
-            });
+      // First try to fetch all server articles from admin endpoint
+      let serverArticles: any[] = [];
+      try {
+        const adminRes = await fetch('/api/v1/admin/articles?limit=100');
+        if (adminRes.ok) {
+          const adminJson = await adminRes.json();
+          if (Array.isArray(adminJson.data?.items)) {
+            serverArticles = adminJson.data.items;
           }
-          this.articles = Array.from(map.values());
-          this.save('juba_articles', this.articles);
-          this.notifyArticles();
         }
+      } catch {
+        // admin endpoint fallback
+      }
+
+      // If admin endpoint didn't return articles, fetch from public /api/news
+      if (serverArticles.length === 0) {
+        const res = await fetch('/api/news?limit=100');
+        if (res.ok) {
+          const json = await res.json();
+          serverArticles = json.data?.items || json.data || [];
+        }
+      }
+
+      if (Array.isArray(serverArticles) && serverArticles.length > 0) {
+        // Merge server articles into local state
+        const map = new Map(this.articles.map((a) => [a.id, a]));
+        for (const s of serverArticles) {
+          map.set(s.id, {
+            ...map.get(s.id),
+            ...s,
+            status: s.status?.toUpperCase() === 'PUBLISHED' ? 'PUBLISHED' : (s.status?.toUpperCase() === 'DRAFT' ? 'DRAFT' : s.status),
+          });
+        }
+        this.articles = Array.from(map.values());
+        this.save('juba_articles', this.articles);
+        this.notifyArticles();
       }
     } catch {
       // ignore

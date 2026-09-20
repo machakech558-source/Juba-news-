@@ -291,7 +291,20 @@ export class FacebookController {
     if (facebookIntegration !== undefined) db.facebookSettings.facebookIntegration = facebookIntegration;
     if (syncMode !== undefined) db.facebookSettings.syncMode = syncMode;
     if (aiProcessing !== undefined) db.facebookSettings.aiProcessing = aiProcessing;
-    if (autoPublish !== undefined) db.facebookSettings.autoPublish = Boolean(autoPublish);
+    if (autoPublish !== undefined) {
+      db.facebookSettings.autoPublish = Boolean(autoPublish);
+      if (Boolean(autoPublish)) {
+        // Automatically publish all pending Facebook draft articles live to the website
+        for (const article of db.articles.values()) {
+          if (article.source === 'Facebook' && article.status !== ARTICLE_STATUS.PUBLISHED) {
+            article.status = ARTICLE_STATUS.PUBLISHED;
+            article.editorialStatus = 'published';
+            if (!article.publishedAt) article.publishedAt = new Date().toISOString();
+            article.updatedAt = new Date().toISOString();
+          }
+        }
+      }
+    }
     if (defaultCategory !== undefined) db.facebookSettings.defaultCategory = defaultCategory;
     if (aiLanguage !== undefined) db.facebookSettings.aiLanguage = aiLanguage;
     if (articleStyle !== undefined) db.facebookSettings.articleStyle = articleStyle;

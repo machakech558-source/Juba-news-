@@ -132,8 +132,13 @@ export const ArticleEditorPage: React.FC<ArticleEditorPageProps> = ({ articleId 
           categorySlug: selectedCat?.slug || 'south_sudan'
         })
       });
-      const data = await res.json();
-      if (data.success && data.data) {
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(language === 'ar' ? 'استجابة خادم الذكاء الاصطناعي غير صالحة' : 'Invalid response from AI server');
+      }
+      if (data && data.success && data.data) {
         const gen = data.data;
         setTitleEn(gen.titleEn);
         setTitleAr(gen.titleAr);
@@ -168,7 +173,7 @@ export const ArticleEditorPage: React.FC<ArticleEditorPageProps> = ({ articleId 
         setAiPromptOpen(false);
         setAiPromptTopic('');
       } else {
-        throw new Error(data.error || 'Failed to generate content');
+        throw new Error(data?.error || 'Failed to generate content');
       }
     } catch (err: any) {
       alert(err.message || 'Error communicating with AI service');

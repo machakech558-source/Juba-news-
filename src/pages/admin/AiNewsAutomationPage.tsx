@@ -97,6 +97,13 @@ export const AiNewsAutomationPage: React.FC = () => {
   const [testImageUrl, setTestImageUrl] = useState('');
   const [testIsImporting, setTestIsImporting] = useState(false);
 
+  // AI Quick Generator modal
+  const [aiGenOpen, setAiGenOpen] = useState(false);
+  const [aiTopic, setAiTopic] = useState('');
+  const [aiCategory, setAiCategory] = useState('south_sudan');
+  const [aiAutoPublish, setAiAutoPublish] = useState(true);
+  const [aiIsGenerating, setAiIsGenerating] = useState(false);
+
   // Success / Error alerts
   const [alertSuccess, setAlertSuccess] = useState<string | null>(null);
   const [alertError, setAlertError] = useState<string | null>(null);
@@ -260,17 +267,69 @@ export const AiNewsAutomationPage: React.FC = () => {
       });
       setTestImportOpen(false);
       setTestMessage('');
+      const isAutoPub = fbSettings.autoPublish;
       setAlertSuccess(
         language === 'ar'
-          ? `تم استيراد المنشور بنجاح وإنشاء مسودة خبر تحريرية: "${art?.titleAr || 'مسودة جديدة'}"`
-          : `Post imported and converted to draft: "${art?.titleEn || 'New Draft'}"`
+          ? (isAutoPub
+              ? `تم استيراد المنشور ونشره تلقائياً على الموقع بنجاح: "${art?.titleAr || 'خبر منشور'}"`
+              : `تم استيراد المنشور بنجاح وإنشاء مسودة خبر تحريرية: "${art?.titleAr || 'مسودة جديدة'}"`)
+          : (isAutoPub
+              ? `Post imported and automatically published live: "${art?.titleEn || 'Published News'}"`
+              : `Post imported and converted to draft: "${art?.titleEn || 'New Draft'}"`)
       );
-      loadAllData();
-      setActiveTab('drafts');
+      await loadAllData();
+      setActiveTab(isAutoPub ? 'published' : 'drafts');
     } catch (err: any) {
       setAlertError(err.message || 'Import failed');
     } finally {
       setTestIsImporting(false);
+    }
+  };
+
+  // AI Quick Generate & Auto-Publish
+  const handleAiQuickGenerate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!aiTopic.trim()) return;
+    setAiIsGenerating(true);
+    setAlertError(null);
+    try {
+      const res = await fetch('/api/v1/ai/generate-news', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: aiTopic,
+          categorySlug: aiCategory,
+          autoPublish: aiAutoPublish,
+        }),
+      });
+      let json: any = null;
+      try {
+        json = await res.json();
+      } catch {
+        throw new Error(language === 'ar' ? 'استجابة خادم الذكاء الاصطناعي غير صالحة' : 'Invalid server response');
+      }
+      if (!res.ok || !json.success) {
+        throw new Error(json?.error || 'Failed to generate news with AI');
+      }
+
+      await dataService.fetchServerArticles();
+      await loadAllData();
+      setAiGenOpen(false);
+      setAiTopic('');
+      setAlertSuccess(
+        language === 'ar'
+          ? (aiAutoPublish
+              ? `تم توليد الخبر ونشره تلقائياً على الموقع بنجاح: "${json.data?.titleAr || json.data?.headline}"`
+              : `تم توليد مسودة الخبر بنجاح: "${json.data?.titleAr || json.data?.headline}"`)
+          : (aiAutoPublish
+              ? `News article generated and published live to website: "${json.data?.titleEn || json.data?.headline}"`
+              : `Draft article generated: "${json.data?.titleEn || json.data?.headline}"`)
+      );
+      setActiveTab(aiAutoPublish ? 'published' : 'drafts');
+    } catch (err: any) {
+      setAlertError(err.message || 'AI Generation failed');
+    } finally {
+      setAiIsGenerating(false);
     }
   };
 
@@ -291,9 +350,15 @@ export const AiNewsAutomationPage: React.FC = () => {
     setFbSettings(updated);
     try {
       await dataService.updateFacebookSettings(updated);
+      if (newVal && draftsList.length > 0) {
+        draftsList.forEach((d) => {
+          dataService.publishArticleDirect(d.id, currentUser || undefined);
+        });
+      }
+      await loadAllData();
       setAlertSuccess(
         newVal
-          ? (language === 'ar' ? 'تم تفعيل النشر التلقائي المباشر (Auto-Publish) بنجاح! سيتم نشر الأخبار فورياً للجمهور.' : 'Live Auto-Publish enabled! News will be published directly.')
+          ? (language === 'ar' ? 'تم تفعيل النشر التلقائي المباشر (Auto-Publish) ونشر الأخبار فورياً للجمهور!' : 'Live Auto-Publish enabled! News will be published directly.')
           : (language === 'ar' ? 'تم تحويل النظام إلى وضع المسودات (تتطلب مراجعة المحرر).' : 'Switched to Draft mode (requires editorial review).')
       );
     } catch (err: any) {
@@ -386,6 +451,13 @@ export const AiNewsAutomationPage: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => setAiGenOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-sm font-semibold shadow-lg shadow-purple-600/30 transition-all active:scale-95 cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4 text-amber-300" />
+              {language === 'ar' ? 'توليد ونشر فوري بالذكاء الاصطناعي' : 'AI Generate & Auto-Publish'}
+            </button>
             <button
               onClick={() => setTestImportOpen(true)}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium border border-slate-700 transition-colors shadow-sm"
@@ -1780,6 +1852,112 @@ export const AiNewsAutomationPage: React.FC = () => {
                   {testIsImporting
                     ? language === 'ar' ? 'جاري التحويل والتحرير...' : 'Processing with AI...'
                     : language === 'ar' ? 'استيراد وتحويل لمسودة' : 'Import to Draft'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: AI QUICK GENERATE & AUTO-PUBLISH */}
+      {aiGenOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center text-purple-600">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">
+                    {language === 'ar' ? 'توليد ونشر خبر بالذكاء الاصطناعي' : 'Generate & Publish News with AI'}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {language === 'ar' ? 'صياغة خبر ثنائي متكامل (عربي/إنجليزي) مع النشر التلقائي المباشر' : 'Full bilingual article with instant auto-publishing'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setAiGenOpen(false)} className="p-1 text-slate-400 hover:text-slate-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAiQuickGenerate} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  {language === 'ar' ? 'موضوع أو عنوان الخبر *' : 'News Topic / Headline *'}
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder={language === 'ar' ? 'مثال: افتتاح مشروع طاقة شمسية جديد في جوبا لتغذية المستشفيات...' : 'e.g. Opening of new solar plant in Juba to power regional hospitals...'}
+                  value={aiTopic}
+                  onChange={(e) => setAiTopic(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-purple-500 leading-relaxed text-slate-800"
+                ></textarea>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  {language === 'ar' ? 'القسم / التصنيف' : 'News Category'}
+                </label>
+                <select
+                  value={aiCategory}
+                  onChange={(e) => setAiCategory(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-slate-700 focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="south_sudan">{language === 'ar' ? 'جنوب السودان' : 'South Sudan'}</option>
+                  <option value="politics">{language === 'ar' ? 'سياسة' : 'Politics'}</option>
+                  <option value="economy">{language === 'ar' ? 'اقتصاد وأعمال' : 'Economy & Business'}</option>
+                  <option value="peace_and_security">{language === 'ar' ? 'سلام وأمن' : 'Peace & Security'}</option>
+                  <option value="culture">{language === 'ar' ? 'ثقافة ومجتمع' : 'Culture & Society'}</option>
+                  <option value="sports">{language === 'ar' ? 'رياضة' : 'Sports'}</option>
+                </select>
+              </div>
+
+              <div className="p-3 bg-purple-50/70 rounded-xl border border-purple-100 flex items-center justify-between">
+                <div>
+                  <div className="font-semibold text-purple-900 text-xs">
+                    {language === 'ar' ? 'النشر التلقائي المباشر في الموقع' : 'Instant Auto-Publish Live'}
+                  </div>
+                  <div className="text-[11px] text-purple-700">
+                    {language === 'ar' ? 'سيتم نشر المقال فوراً للزوار دون الحاجة لاعتماد يدوي' : 'Directly publish to the public website without waiting for draft review'}
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={aiAutoPublish}
+                  onChange={(e) => setAiAutoPublish(e.target.checked)}
+                  className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAiGenOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs text-slate-600 hover:bg-slate-100"
+                >
+                  {language === 'ar' ? 'إلغاء' : 'Cancel'}
+                </button>
+                <button
+                  type="submit"
+                  disabled={aiIsGenerating}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs font-bold hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 flex items-center gap-2 shadow-md shadow-purple-600/20"
+                >
+                  {aiIsGenerating ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      {language === 'ar' ? 'جاري التوليد والنشر التلقائي...' : 'Generating & Publishing...'}
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                      {aiAutoPublish
+                        ? (language === 'ar' ? 'توليد ونشر فوري' : 'Generate & Publish Live')
+                        : (language === 'ar' ? 'توليد كمسودة' : 'Generate as Draft')}
+                    </>
+                  )}
                 </button>
               </div>
             </form>

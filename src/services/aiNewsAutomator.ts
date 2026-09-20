@@ -177,9 +177,15 @@ class AiNewsAutomatorService {
         throw new Error(`AI Dispatch Server responded with ${response.status}`);
       }
 
-      const result = await response.json();
-      if (!result.success || !result.data) {
-        throw new Error(result.error || 'Failed to parse AI article payload');
+      let result: any = null;
+      try {
+        result = await response.json();
+      } catch {
+        throw new Error('استجابة خادم الذكاء الاصطناعي غير صالحة');
+      }
+
+      if (!result || !result.success || !result.data) {
+        throw new Error(result?.error || 'Failed to parse AI article payload');
       }
 
       const gen = result.data;
@@ -302,9 +308,15 @@ class AiNewsAutomatorService {
       throw new Error(`AI Dispatch Server responded with status ${response.status}`);
     }
 
-    const result = await response.json();
-    if (!result.success || !result.data) {
-      throw new Error(result.error || 'Failed to generate news with AI');
+    let result: any = null;
+    try {
+      result = await response.json();
+    } catch {
+      throw new Error('استجابة خادم الذكاء الاصطناعي غير صالحة');
+    }
+
+    if (!result || !result.success || !result.data) {
+      throw new Error(result?.error || 'Failed to generate news with AI');
     }
 
     return result.data as GeneratedNewsArticle;
