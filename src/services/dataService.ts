@@ -934,7 +934,7 @@ class DataService {
       webhookUrl: '/api/webhooks/facebook',
       verifyToken: 'juba_news_meta_verify_token_2026',
       lastSyncAt: new Date(Date.now() - 1800000).toISOString(),
-      autoPublish: false,
+      autoPublish: true,
       aiProcessing: 'ENABLED',
       syncMode: 'BOTH',
       counts: {
@@ -1114,7 +1114,7 @@ class DataService {
       facebookIntegration: 'CONNECTED',
       syncMode: 'BOTH',
       aiProcessing: 'ENABLED',
-      autoPublish: false,
+      autoPublish: true,
       defaultCategory: 'cat-ss',
       aiLanguage: 'both',
       articleStyle: 'formal',

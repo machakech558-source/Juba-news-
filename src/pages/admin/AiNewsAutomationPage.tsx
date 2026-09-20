@@ -56,7 +56,7 @@ export const AiNewsAutomationPage: React.FC = () => {
     facebookIntegration: 'CONNECTED',
     syncMode: 'BOTH',
     aiProcessing: 'ENABLED',
-    autoPublish: false,
+    autoPublish: true,
     defaultCategory: 'cat-ss',
     aiLanguage: 'both',
     articleStyle: 'formal',
@@ -285,6 +285,41 @@ export const AiNewsAutomationPage: React.FC = () => {
     }
   };
 
+  // Instant Toggle for Live Auto-Publish
+  const handleToggleAutoPublish = async (newVal: boolean) => {
+    const updated = { ...fbSettings, autoPublish: newVal };
+    setFbSettings(updated);
+    try {
+      await dataService.updateFacebookSettings(updated);
+      setAlertSuccess(
+        newVal
+          ? (language === 'ar' ? 'تم تفعيل النشر التلقائي المباشر (Auto-Publish) بنجاح! سيتم نشر الأخبار فورياً للجمهور.' : 'Live Auto-Publish enabled! News will be published directly.')
+          : (language === 'ar' ? 'تم تحويل النظام إلى وضع المسودات (تتطلب مراجعة المحرر).' : 'Switched to Draft mode (requires editorial review).')
+      );
+    } catch (err: any) {
+      setAlertError(err.message || 'Failed saving settings');
+    }
+  };
+
+  // Batch Publish All Drafts
+  const handlePublishAllDrafts = () => {
+    if (draftsList.length === 0) return;
+    const confirmMsg = language === 'ar'
+      ? `هل تريد بالتأكيد نشر جميع المسودات المعلقة (${draftsList.length}) فوراً إلى الموقع للجمهور؟`
+      : `Publish all ${draftsList.length} pending drafts live now?`;
+    if (!window.confirm(confirmMsg)) return;
+
+    draftsList.forEach((d) => {
+      dataService.publishArticleDirect(d.id, currentUser || undefined);
+    });
+    setAlertSuccess(
+      language === 'ar'
+        ? `تم نشر جميع المسودات المعلقة (${draftsList.length}) على الموقع بنجاح!`
+        : `Successfully published all ${draftsList.length} drafts!`
+    );
+    loadAllData();
+  };
+
   return (
     <div className="space-y-6" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Top Banner & Header */}
@@ -327,14 +362,26 @@ export const AiNewsAutomationPage: React.FC = () => {
                 {language === 'ar' ? 'معرف الصفحة:' : 'Page ID:'} <code className="text-amber-300 font-mono">108429588219424</code>
               </span>
               <span className="text-slate-400 px-2">|</span>
-              <span className="text-slate-300">
-                {language === 'ar' ? 'نظام النشر الافتراضي:' : 'Default Publish:'}{' '}
-                <strong className={fbSettings.autoPublish ? 'text-amber-400' : 'text-emerald-400'}>
+              <div className="inline-flex items-center gap-2">
+                <span className="text-slate-300">
+                  {language === 'ar' ? 'نظام النشر الافتراضي:' : 'Default Publish:'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleToggleAutoPublish(!fbSettings.autoPublish)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition shadow-xs cursor-pointer ${
+                    fbSettings.autoPublish
+                      ? 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/40'
+                      : 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/40'
+                  }`}
+                  title={language === 'ar' ? 'انقر للتبديل بين النشر التلقائي والمسودة' : 'Click to toggle auto-publish mode'}
+                >
+                  <span className={`w-2 h-2 rounded-full ${fbSettings.autoPublish ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
                   {fbSettings.autoPublish
-                    ? language === 'ar' ? 'نشر تلقائي' : 'Auto Publish'
-                    : language === 'ar' ? 'مسودة (يتطلب مراجعة المحرر)' : 'Draft (Requires Editorial Approval)'}
-                </strong>
-              </span>
+                    ? (language === 'ar' ? '✓ نشر تلقائي مباشر (مفعل)' : '✓ Live Auto-Publish (ON)')
+                    : (language === 'ar' ? 'مسودة (يتطلب مراجعة المحرر)' : 'Draft (Manual Approval)')}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -556,10 +603,21 @@ export const AiNewsAutomationPage: React.FC = () => {
                   : 'Facebook posts converted to drafts. Review, edit, approve, or publish them.'}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3 flex-wrap">
               <span className="text-xs text-slate-500">
                 {language === 'ar' ? 'إجمالي المسودات:' : 'Total Drafts:'} <strong>{draftsList.length}</strong>
               </span>
+              {draftsList.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handlePublishAllDrafts}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-sm cursor-pointer active:scale-95"
+                  title={language === 'ar' ? 'نشر جميع هذه المسودات فوراً على الموقع' : 'Publish all drafts live now'}
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>{language === 'ar' ? `نشر الكل فوراً (${draftsList.length})` : `Publish All (${draftsList.length})`}</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -1095,28 +1153,147 @@ export const AiNewsAutomationPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Editorial Auto Publish Warning Toggle */}
-              <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/50 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="font-bold text-amber-900 block">
-                      {language === 'ar' ? 'النشر التلقائي المباشر (Auto-Publish)' : 'Automatic Live Publishing'}
-                    </span>
-                    <span className="text-xs text-amber-700">
-                      {language === 'ar'
-                        ? 'موصى بتعطيله (الافتراضي): تبقى الأخبار مسودة بانتظار مراجعة واعتماد المحرر.'
-                        : 'Recommended Disabled: News stays in draft mode requiring editorial approval.'}
-                    </span>
+              {/* Editorial Auto Publish Master Control Card */}
+              <div className={`p-5 rounded-2xl border transition-all ${
+                fbSettings.autoPublish 
+                  ? 'border-emerald-300 bg-emerald-50/80 dark:bg-emerald-950/30 dark:border-emerald-700 shadow-xs' 
+                  : 'border-amber-300 bg-amber-50/80 dark:bg-amber-950/30 dark:border-amber-700'
+              }`}>
+                {/* Header with Title & Main Switch */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/70 dark:border-slate-800">
+                  <div className="flex items-start gap-3">
+                    <div className={`p-2.5 rounded-xl shrink-0 ${
+                      fbSettings.autoPublish
+                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                        : 'bg-amber-500 text-white'
+                    }`}>
+                      {fbSettings.autoPublish ? <Zap className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-extrabold text-base text-slate-900 dark:text-white">
+                          {language === 'ar' ? 'النشر التلقائي المباشر (Auto-Publish)' : 'Automatic Live Publishing'}
+                        </span>
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                          fbSettings.autoPublish
+                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200 border border-emerald-300'
+                            : 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200 border border-amber-300'
+                        }`}>
+                          {fbSettings.autoPublish ? (
+                            <>
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>{language === 'ar' ? 'مفعل الآن (نشر فوري)' : 'Active (Live Publishing)'}</span>
+                            </>
+                          ) : (
+                            <>
+                              <Clock className="w-3.5 h-3.5 text-amber-600" />
+                              <span>{language === 'ar' ? 'معطل (وضع المسودة)' : 'Disabled (Draft Mode)'}</span>
+                            </>
+                          )}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                        {fbSettings.autoPublish
+                          ? (language === 'ar'
+                              ? 'النشر التلقائي مُفعّل: يتم نشر الأخبار والمنشورات فورياً ومباشرة على موقع جوبا نيوز للجمهور بمجرد استيرادها ومعالجتها آلياً بالذكاء الاصطناعي.'
+                              : 'Auto-publish is enabled: All processed news items are published live directly to the website without manual review.')
+                          : (language === 'ar'
+                              ? 'وضع المسودات: تبقى الأخبار كمسودات بانتظار مراجعة واعتماد المحرر قبل ظهورها للجمهور.'
+                              : 'Draft mode: News stays in draft mode requiring editorial approval before going live.')}
+                      </p>
+                    </div>
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={fbSettings.autoPublish}
-                      onChange={(e) => setFbSettings({ ...fbSettings, autoPublish: e.target.checked })}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
-                  </label>
+
+                  {/* Guaranteed Visible & Clickable Toggle Switch */}
+                  <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={fbSettings.autoPublish}
+                      onClick={() => handleToggleAutoPublish(!fbSettings.autoPublish)}
+                      className={`relative inline-flex h-8 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
+                        fbSettings.autoPublish ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                      }`}
+                      title={language === 'ar' ? 'تبديل النشر التلقائي' : 'Toggle Auto-Publish'}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                          fbSettings.autoPublish
+                            ? (isRTL ? '-translate-x-6' : 'translate-x-6')
+                            : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Two Large Interactive Mode Selector Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3">
+                  {/* Option 1: Auto-Publish Live */}
+                  <div
+                    onClick={() => handleToggleAutoPublish(true)}
+                    className={`p-3.5 rounded-xl border-2 transition cursor-pointer flex items-start gap-3 ${
+                      fbSettings.autoPublish
+                        ? 'bg-emerald-100/90 border-emerald-600 text-emerald-950 dark:bg-emerald-950/60 dark:border-emerald-500 dark:text-emerald-100 shadow-xs ring-1 ring-emerald-600'
+                        : 'bg-white/80 border-slate-200 hover:border-emerald-400 text-slate-700 dark:bg-slate-900/50 dark:border-slate-800'
+                    }`}
+                  >
+                    <div className={`p-2 rounded-lg shrink-0 ${
+                      fbSettings.autoPublish ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      <CheckCircle2 className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-slate-900 dark:text-white">
+                          {language === 'ar' ? '1. النشر التلقائي المباشر (Auto-Publish)' : '1. Live Auto-Publishing'}
+                        </span>
+                        {fbSettings.autoPublish && (
+                          <span className="text-[10px] font-black uppercase text-emerald-700 dark:text-emerald-300">
+                            {language === 'ar' ? '✓ مُفعّل الآن' : '✓ Active'}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
+                        {language === 'ar'
+                          ? 'نشر فوري ومباشر على الموقع بمجرد المعالجة'
+                          : 'Immediate live publication upon ingestion'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Option 2: Drafts & Editorial Review */}
+                  <div
+                    onClick={() => handleToggleAutoPublish(false)}
+                    className={`p-3.5 rounded-xl border-2 transition cursor-pointer flex items-start gap-3 ${
+                      !fbSettings.autoPublish
+                        ? 'bg-amber-100/90 border-amber-600 text-amber-950 dark:bg-amber-950/60 dark:border-amber-500 dark:text-amber-100 shadow-xs ring-1 ring-amber-600'
+                        : 'bg-white/80 border-slate-200 hover:border-amber-400 text-slate-700 dark:bg-slate-900/50 dark:border-slate-800'
+                    }`}
+                  >
+                    <div className={`p-2 rounded-lg shrink-0 ${
+                      !fbSettings.autoPublish ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-slate-900 dark:text-white">
+                          {language === 'ar' ? '2. مسودة ومراجعة يدوية (Draft Mode)' : '2. Draft Mode & Review'}
+                        </span>
+                        {!fbSettings.autoPublish && (
+                          <span className="text-[10px] font-black uppercase text-amber-700 dark:text-amber-300">
+                            {language === 'ar' ? '✓ مُفعّل الآن' : '✓ Active'}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
+                        {language === 'ar'
+                          ? 'تبقى الأخبار كمسودات بانتظار موافقة المحرر'
+                          : 'Requires manual review before publication'}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
 

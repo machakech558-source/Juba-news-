@@ -216,7 +216,7 @@ class DatabaseStore {
     facebookIntegration: 'CONNECTED',
     syncMode: 'BOTH',
     aiProcessing: 'ENABLED',
-    autoPublish: false, // Default strictly FALSE: all Facebook news initially draft
+    autoPublish: true, // Default enabled: auto-publish news live to the website
     defaultCategory: 'cat-ss',
     aiLanguage: 'both',
     articleStyle: 'formal',
