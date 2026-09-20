@@ -286,6 +286,8 @@ export class FacebookController {
       articleStyle,
       minimumConfidence,
       metaPageName,
+      metaPageId,
+      pagePermalink,
     } = req.body;
 
     if (facebookIntegration !== undefined) db.facebookSettings.facebookIntegration = facebookIntegration;
@@ -309,7 +311,9 @@ export class FacebookController {
     if (aiLanguage !== undefined) db.facebookSettings.aiLanguage = aiLanguage;
     if (articleStyle !== undefined) db.facebookSettings.articleStyle = articleStyle;
     if (minimumConfidence !== undefined) db.facebookSettings.minimumConfidence = Number(minimumConfidence);
-    if (metaPageName !== undefined) db.facebookSettings.metaPageName = metaPageName;
+    if (metaPageName !== undefined) db.facebookSettings.metaPageName = String(metaPageName).trim();
+    if (metaPageId !== undefined) db.facebookSettings.metaPageId = String(metaPageId).trim();
+    if (pagePermalink !== undefined) db.facebookSettings.pagePermalink = String(pagePermalink).trim();
 
     db.facebookSettings.updatedAt = new Date().toISOString();
 

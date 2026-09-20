@@ -23,7 +23,12 @@ import {
   Send,
   Database,
   Filter,
-  RotateCcw
+  RotateCcw,
+  ChevronDown,
+  Globe,
+  PenTool,
+  Hash,
+  Bookmark
 } from 'lucide-react';
 import { useThemeLanguage } from '../../contexts/ThemeLanguageContext';
 import { useRouter } from '../../contexts/RouterContext';
@@ -107,6 +112,8 @@ export const AiNewsAutomationPage: React.FC = () => {
   // Success / Error alerts
   const [alertSuccess, setAlertSuccess] = useState<string | null>(null);
   const [alertError, setAlertError] = useState<string | null>(null);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [settingsSavedAt, setSettingsSavedAt] = useState<string | null>(null);
 
   const loadAllData = async () => {
     setIsLoading(true);
@@ -121,7 +128,10 @@ export const AiNewsAutomationPage: React.FC = () => {
       setFbStatus(status);
       setFbPosts(posts);
       setSyncLogs(logs);
-      if (settings) setFbSettings(settings);
+      if (settings) {
+        setFbSettings(settings);
+        if (settings.updatedAt) setSettingsSavedAt(settings.updatedAt);
+      }
 
       setArticles(dataService.getArticles());
       setCategories(dataService.getCategories().filter((c) => c.enabled));
@@ -336,11 +346,36 @@ export const AiNewsAutomationPage: React.FC = () => {
   // Save Settings
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!fbSettings.metaPageId?.trim()) {
+      setAlertError(language === 'ar' ? 'يرجى إدخال معرف الصفحة (Page ID).' : 'Please enter the Meta Page ID.');
+      return;
+    }
+    if (!fbSettings.metaPageName?.trim()) {
+      setAlertError(language === 'ar' ? 'يرجى إدخال اسم الصفحة.' : 'Please enter the Page Name.');
+      return;
+    }
+
+    setIsSavingSettings(true);
+    setAlertError(null);
     try {
-      await dataService.updateFacebookSettings(fbSettings);
-      setAlertSuccess(language === 'ar' ? 'تم حفظ إعدادات غرفة أخبار فيسبوك بنجاح.' : 'Newsroom settings updated.');
+      const updated = await dataService.updateFacebookSettings(fbSettings);
+      setFbSettings(updated);
+      const nowStr = new Date().toISOString();
+      setSettingsSavedAt(nowStr);
+      setAlertSuccess(
+        language === 'ar'
+          ? `✓ تم حفظ وتطبيق إعدادات غرفة الأخبار بنجاح! [معرف الصفحة: ${updated.metaPageId || fbSettings.metaPageId} | اسم الصفحة: ${updated.metaPageName || fbSettings.metaPageName} | لغة التوليد: ${
+              updated.aiLanguage === 'both' ? 'ثنائي (عربي + إنجليزي)' : updated.aiLanguage === 'ar' ? 'عربي فقط' : 'إنجليزي فقط'
+            } | الأسلوب: ${
+              updated.articleStyle === 'formal' ? 'صحفي رسمي رصين' : updated.articleStyle === 'concise' ? 'موجز وسريع' : 'تقرير تحليلي موسع'
+            }]`
+          : `✓ Newsroom settings saved successfully! Page ID: ${updated.metaPageId || fbSettings.metaPageId} | Page: ${updated.metaPageName || fbSettings.metaPageName}`
+      );
+      await loadAllData();
     } catch (err: any) {
       setAlertError(err.message || 'Failed saving settings');
+    } finally {
+      setIsSavingSettings(false);
     }
   };
 
@@ -413,18 +448,21 @@ export const AiNewsAutomationPage: React.FC = () => {
                 {language === 'ar' ? 'متصل بصفحة فيسبوك' : 'Connected to Facebook'}
               </span>
               <a
-                href="https://www.facebook.com/share/1UpeZiXU5k/"
+                href={fbSettings.pagePermalink || 'https://www.facebook.com/share/1UpeZiXU5k/'}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 border border-blue-500/20 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 border border-blue-500/20 transition-colors font-medium"
               >
-                <Share2 className="w-3 h-3" />
-                {language === 'ar' ? 'صفحة جوبا نيوز الرسمية' : 'Official Facebook Page'}
-                <ExternalLink className="w-3 h-3 ml-0.5" />
+                <Share2 className="w-3 h-3 text-blue-400" />
+                <span>{fbSettings.metaPageName || (language === 'ar' ? 'صفحة جوبا نيوز الرسمية' : 'Official Facebook Page')}</span>
+                <ExternalLink className="w-3 h-3 ml-0.5 text-blue-400" />
               </a>
               <span className="text-slate-400 px-2">|</span>
               <span className="text-slate-300">
-                {language === 'ar' ? 'معرف الصفحة:' : 'Page ID:'} <code className="text-amber-300 font-mono">108429588219424</code>
+                {language === 'ar' ? 'معرف الصفحة:' : 'Page ID:'}{' '}
+                <code className="text-amber-300 font-mono font-bold bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
+                  {fbSettings.metaPageId || '108429588219424'}
+                </code>
               </span>
               <span className="text-slate-400 px-2">|</span>
               <div className="inline-flex items-center gap-2">
@@ -1188,51 +1226,128 @@ export const AiNewsAutomationPage: React.FC = () => {
       {/* SECTION F: SETTINGS & WEBHOOK INSTRUCTIONS */}
       {activeTab === 'settings' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-900 mb-1">
-              {language === 'ar' ? 'إعدادات غرفة أخبار فيسبوك والذكاء الاصطناعي' : 'Facebook & AI Newsroom Settings'}
-            </h2>
-            <p className="text-xs text-slate-500 mb-6">
-              {language === 'ar'
-                ? 'تخصيص قواعد المعالجة الآلية، لغة الأخبار، وسياسة النشر التحريرية'
-                : 'Configure ingestion rules, AI language models, and publishing policy'}
-            </p>
+          <div className="lg:col-span-2 bg-white dark:bg-stone-900 rounded-2xl border-2 border-slate-200 dark:border-stone-700 p-6 sm:p-7 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 mb-5 border-b border-slate-200 dark:border-stone-700">
+              <div>
+                <h2 className="text-lg font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Sliders className="w-5 h-5 text-blue-600" />
+                  {language === 'ar' ? 'إعدادات غرفة أخبار فيسبوك والذكاء الاصطناعي' : 'Facebook & AI Newsroom Settings'}
+                </h2>
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                  {language === 'ar'
+                    ? 'تخصيص معرف الصفحة، لغة التوليد، الأسلوب الصحفي، وسياسة النشر التحريرية'
+                    : 'Configure Meta page identity, AI editorial language, journalistic style, and publishing rules'}
+                </p>
+              </div>
 
-            <form onSubmit={handleSaveSettings} className="space-y-5 text-sm">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1">
-                    {language === 'ar' ? 'معرف الصفحة (Page ID)' : 'Meta Page ID'}
-                  </label>
+              {settingsSavedAt && (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>{language === 'ar' ? 'الإعدادات محفوظة ونشطة' : 'Settings Saved & Active'}</span>
+                </div>
+              )}
+            </div>
+
+            <form onSubmit={handleSaveSettings} className="space-y-6 text-sm">
+              {/* Row 1: Page ID & Page Name */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5 text-xs">
+                      <Hash className="w-3.5 h-3.5 text-blue-600" />
+                      <span>{language === 'ar' ? 'معرف الصفحة (Page ID)' : 'Meta Page ID'}</span>
+                      <span className="text-rose-500">*</span>
+                    </label>
+                    {fbSettings.metaPageId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(fbSettings.metaPageId);
+                          setAlertSuccess(language === 'ar' ? 'تم نسخ معرف الصفحة بنجاح.' : 'Page ID copied.');
+                        }}
+                        className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
+                        title={language === 'ar' ? 'نسخ معرف الصفحة' : 'Copy Page ID'}
+                      >
+                        <Copy className="w-3 h-3" />
+                        <span>{language === 'ar' ? 'نسخ' : 'Copy'}</span>
+                      </button>
+                    )}
+                  </div>
                   <input
                     type="text"
-                    value={fbSettings.metaPageId}
+                    required
+                    value={fbSettings.metaPageId || ''}
                     onChange={(e) => setFbSettings({ ...fbSettings, metaPageId: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-mono text-xs"
+                    placeholder="108429588219424"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-stone-800 border-2 border-slate-300 dark:border-stone-600 rounded-xl focus:border-blue-600 focus:bg-white dark:focus:bg-stone-750 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-900 dark:text-white font-mono font-bold text-sm tracking-wide transition-colors placeholder:text-slate-400"
                   />
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    {language === 'ar'
+                      ? 'المعرف الرقمي لصفحة فيسبوك لاستقبال إشعارات Meta Webhook وربط الأخبار.'
+                      : 'Unique numerical ID of the Facebook Page for receiving Meta Webhooks.'}
+                  </p>
                 </div>
 
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1">
-                    {language === 'ar' ? 'اسم الصفحة' : 'Page Name'}
-                  </label>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5 text-xs">
+                      <Bookmark className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>{language === 'ar' ? 'اسم الصفحة على فيسبوك' : 'Page Name'}</span>
+                      <span className="text-rose-500">*</span>
+                    </label>
+                  </div>
                   <input
                     type="text"
-                    value={fbSettings.metaPageName}
+                    required
+                    value={fbSettings.metaPageName || ''}
                     onChange={(e) => setFbSettings({ ...fbSettings, metaPageName: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 text-xs"
+                    placeholder="Juba News - جوبا نيوز"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-stone-800 border-2 border-slate-300 dark:border-stone-600 rounded-xl focus:border-blue-600 focus:bg-white dark:focus:bg-stone-750 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-900 dark:text-white font-bold text-sm transition-colors placeholder:text-slate-400"
                   />
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    {language === 'ar'
+                      ? 'الاسم التحريري المعتمد لغرفة الأخبار الذي يظهر للقراء كمصدر للمقال.'
+                      : 'The official brand name of the Facebook Page used in editorial references.'}
+                  </p>
                 </div>
               </div>
 
+              {/* Row 2: Page URL / Permalink */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5 text-xs">
+                    <Share2 className="w-3.5 h-3.5 text-blue-500" />
+                    <span>{language === 'ar' ? 'رابط الصفحة المباشر على فيسبوك' : 'Page Permalink URL'}</span>
+                  </label>
+                  {fbSettings.pagePermalink && (
+                    <a
+                      href={fbSettings.pagePermalink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      <span>{language === 'ar' ? 'فتح الصفحة' : 'Open Page'}</span>
+                    </a>
+                  )}
+                </div>
+                <input
+                  type="url"
+                  value={fbSettings.pagePermalink || ''}
+                  onChange={(e) => setFbSettings({ ...fbSettings, pagePermalink: e.target.value })}
+                  placeholder="https://www.facebook.com/share/1UpeZiXU5k/"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-stone-800 border-2 border-slate-300 dark:border-stone-600 rounded-xl focus:border-blue-600 focus:bg-white dark:focus:bg-stone-750 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-900 dark:text-white text-xs font-mono transition-colors placeholder:text-slate-400"
+                />
+              </div>
+
               {/* Editorial Auto Publish Master Control Card */}
-              <div className={`p-5 rounded-2xl border transition-all ${
+              <div className={`p-5 rounded-2xl border-2 transition-all ${
                 fbSettings.autoPublish 
-                  ? 'border-emerald-300 bg-emerald-50/80 dark:bg-emerald-950/30 dark:border-emerald-700 shadow-xs' 
-                  : 'border-amber-300 bg-amber-50/80 dark:bg-amber-950/30 dark:border-amber-700'
+                  ? 'border-emerald-500 bg-emerald-50/90 dark:bg-emerald-950/40 dark:border-emerald-600 shadow-xs' 
+                  : 'border-amber-500 bg-amber-50/90 dark:bg-amber-950/40 dark:border-amber-600'
               }`}>
                 {/* Header with Title & Main Switch */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/70 dark:border-slate-800">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800">
                   <div className="flex items-start gap-3">
                     <div className={`p-2.5 rounded-xl shrink-0 ${
                       fbSettings.autoPublish
@@ -1254,17 +1369,17 @@ export const AiNewsAutomationPage: React.FC = () => {
                           {fbSettings.autoPublish ? (
                             <>
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>{language === 'ar' ? 'مفعل الآن (نشر فوري)' : 'Active (Live Publishing)'}</span>
+                              <span>{language === 'ar' ? 'مفعل الآن (نشر فوري للجمهور)' : 'Active (Live Publishing)'}</span>
                             </>
                           ) : (
                             <>
                               <Clock className="w-3.5 h-3.5 text-amber-600" />
-                              <span>{language === 'ar' ? 'معطل (وضع المسودة)' : 'Disabled (Draft Mode)'}</span>
+                              <span>{language === 'ar' ? 'معطل (وضع المسودة للمراجعة)' : 'Disabled (Draft Mode)'}</span>
                             </>
                           )}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                      <p className="text-xs text-slate-700 dark:text-slate-300 mt-1 leading-relaxed">
                         {fbSettings.autoPublish
                           ? (language === 'ar'
                               ? 'النشر التلقائي مُفعّل: يتم نشر الأخبار والمنشورات فورياً ومباشرة على موقع جوبا نيوز للجمهور بمجرد استيرادها ومعالجتها آلياً بالذكاء الاصطناعي.'
@@ -1276,7 +1391,7 @@ export const AiNewsAutomationPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Guaranteed Visible & Clickable Toggle Switch */}
+                  {/* Toggle Switch */}
                   <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
                     <button
                       type="button"
@@ -1306,12 +1421,12 @@ export const AiNewsAutomationPage: React.FC = () => {
                     onClick={() => handleToggleAutoPublish(true)}
                     className={`p-3.5 rounded-xl border-2 transition cursor-pointer flex items-start gap-3 ${
                       fbSettings.autoPublish
-                        ? 'bg-emerald-100/90 border-emerald-600 text-emerald-950 dark:bg-emerald-950/60 dark:border-emerald-500 dark:text-emerald-100 shadow-xs ring-1 ring-emerald-600'
-                        : 'bg-white/80 border-slate-200 hover:border-emerald-400 text-slate-700 dark:bg-slate-900/50 dark:border-slate-800'
+                        ? 'bg-emerald-100 border-emerald-600 text-emerald-950 dark:bg-emerald-950/70 dark:border-emerald-500 dark:text-emerald-100 shadow-xs ring-1 ring-emerald-600'
+                        : 'bg-white border-slate-200 hover:border-emerald-400 text-slate-700 dark:bg-slate-900/50 dark:border-slate-800'
                     }`}
                   >
                     <div className={`p-2 rounded-lg shrink-0 ${
-                      fbSettings.autoPublish ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500'
+                      fbSettings.autoPublish ? 'bg-emerald-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
                     }`}>
                       <CheckCircle2 className="w-4 h-4" />
                     </div>
@@ -1339,12 +1454,12 @@ export const AiNewsAutomationPage: React.FC = () => {
                     onClick={() => handleToggleAutoPublish(false)}
                     className={`p-3.5 rounded-xl border-2 transition cursor-pointer flex items-start gap-3 ${
                       !fbSettings.autoPublish
-                        ? 'bg-amber-100/90 border-amber-600 text-amber-950 dark:bg-amber-950/60 dark:border-amber-500 dark:text-amber-100 shadow-xs ring-1 ring-amber-600'
-                        : 'bg-white/80 border-slate-200 hover:border-amber-400 text-slate-700 dark:bg-slate-900/50 dark:border-slate-800'
+                        ? 'bg-amber-100 border-amber-600 text-amber-950 dark:bg-amber-950/70 dark:border-amber-500 dark:text-amber-100 shadow-xs ring-1 ring-amber-600'
+                        : 'bg-white border-slate-200 hover:border-amber-400 text-slate-700 dark:bg-slate-900/50 dark:border-slate-800'
                     }`}
                   >
                     <div className={`p-2 rounded-lg shrink-0 ${
-                      !fbSettings.autoPublish ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-500'
+                      !fbSettings.autoPublish ? 'bg-amber-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
                     }`}>
                       <FileText className="w-4 h-4" />
                     </div>
@@ -1369,45 +1484,222 @@ export const AiNewsAutomationPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1">
-                    {language === 'ar' ? 'لغة التوليد التحريري' : 'AI Output Language'}
+              {/* Row 3: Editorial Generation Language */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5 text-xs">
+                    <Globe className="w-4 h-4 text-emerald-600" />
+                    <span>{language === 'ar' ? 'لغة التوليد التحريري بالذكاء الاصطناعي (AI Output Language)' : 'AI Generation Language'}</span>
+                    <span className="text-rose-500">*</span>
                   </label>
+                  <span className="text-[11px] text-slate-500 font-mono">
+                    {fbSettings.aiLanguage === 'both' ? 'Bilingual (ar+en)' : fbSettings.aiLanguage === 'ar' ? 'Arabic Only' : 'English Only'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  {language === 'ar'
+                    ? 'تحدد اللغة التي يقوم الذكاء الاصطناعي Gemini بصياغة الخبر والعنوان والملخص بها عند تحويل المنشور.'
+                    : 'Defines the language structure Gemini AI outputs for article headlines, content, and summaries.'}
+                </p>
+
+                {/* 3 Clickable Language Option Chips */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                  <div
+                    onClick={() => setFbSettings({ ...fbSettings, aiLanguage: 'both' })}
+                    className={`p-3 rounded-xl border-2 transition cursor-pointer flex flex-col justify-between ${
+                      fbSettings.aiLanguage === 'both'
+                        ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-100 shadow-xs'
+                        : 'border-slate-200 dark:border-stone-700 bg-slate-50 dark:bg-stone-800 text-slate-700 dark:text-slate-300 hover:border-emerald-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-xs">🌐 {language === 'ar' ? 'عربي وإنجليزي معاً' : 'Bilingual (Ar + En)'}</span>
+                      {fbSettings.aiLanguage === 'both' && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                    </div>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                      {language === 'ar' ? 'نسخة عربية وإنجليزية كاملتين (الموصى به)' : 'Full articles in both Arabic & English'}
+                    </span>
+                  </div>
+
+                  <div
+                    onClick={() => setFbSettings({ ...fbSettings, aiLanguage: 'ar' })}
+                    className={`p-3 rounded-xl border-2 transition cursor-pointer flex flex-col justify-between ${
+                      fbSettings.aiLanguage === 'ar'
+                        ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-100 shadow-xs'
+                        : 'border-slate-200 dark:border-stone-700 bg-slate-50 dark:bg-stone-800 text-slate-700 dark:text-slate-300 hover:border-emerald-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-xs">🇸🇩 {language === 'ar' ? 'عربي فقط' : 'Arabic Only'}</span>
+                      {fbSettings.aiLanguage === 'ar' && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                    </div>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                      {language === 'ar' ? 'صياغة عربية متكاملة للجمهور المحلي' : 'Full Arabic journalism only'}
+                    </span>
+                  </div>
+
+                  <div
+                    onClick={() => setFbSettings({ ...fbSettings, aiLanguage: 'en' })}
+                    className={`p-3 rounded-xl border-2 transition cursor-pointer flex flex-col justify-between ${
+                      fbSettings.aiLanguage === 'en'
+                        ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-100 shadow-xs'
+                        : 'border-slate-200 dark:border-stone-700 bg-slate-50 dark:bg-stone-800 text-slate-700 dark:text-slate-300 hover:border-emerald-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-xs">🌍 {language === 'ar' ? 'إنجليزي فقط' : 'English Only'}</span>
+                      {fbSettings.aiLanguage === 'en' && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                    </div>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                      {language === 'ar' ? 'صياغة إنجليزية معيارية كاملة' : 'Full English journalism only'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-1">
                   <select
                     value={fbSettings.aiLanguage}
                     onChange={(e) => setFbSettings({ ...fbSettings, aiLanguage: e.target.value as any })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 text-xs"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-stone-800 border-2 border-slate-300 dark:border-stone-600 rounded-xl focus:border-blue-600 focus:bg-white dark:focus:bg-stone-750 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-900 dark:text-white font-bold text-xs cursor-pointer"
                   >
-                    <option value="both">{language === 'ar' ? 'عربي وإنجليزي معاً (ثنائي اللغة)' : 'Bilingual (Arabic & English)'}</option>
-                    <option value="ar">{language === 'ar' ? 'عربي فقط' : 'Arabic Only'}</option>
-                    <option value="en">{language === 'ar' ? 'إنجليزي فقط' : 'English Only'}</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1">
-                    {language === 'ar' ? 'الأسلوب الصحفي' : 'Journalistic Style'}
-                  </label>
-                  <select
-                    value={fbSettings.articleStyle}
-                    onChange={(e) => setFbSettings({ ...fbSettings, articleStyle: e.target.value as any })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 text-xs"
-                  >
-                    <option value="formal">{language === 'ar' ? 'صحفي رسمي رصين (Formal News)' : 'Formal Journalistic'}</option>
-                    <option value="concise">{language === 'ar' ? 'موجز وسريع (Concise Dispatch)' : 'Concise Dispatch'}</option>
-                    <option value="detailed">{language === 'ar' ? 'تقرير تحليلي موسع (In-Depth Analysis)' : 'In-Depth Analysis'}</option>
+                    <option value="both" className="bg-white dark:bg-stone-900 text-slate-900 dark:text-white py-1">
+                      {language === 'ar' ? '🌐 عربي وإنجليزي معاً (ثنائي اللغة - الموصى به)' : '🌐 Bilingual (Arabic & English - Recommended)'}
+                    </option>
+                    <option value="ar" className="bg-white dark:bg-stone-900 text-slate-900 dark:text-white py-1">
+                      {language === 'ar' ? '🇸🇩 عربي فقط (صياغة عربية متكاملة)' : '🇸🇩 Arabic Only'}
+                    </option>
+                    <option value="en" className="bg-white dark:bg-stone-900 text-slate-900 dark:text-white py-1">
+                      {language === 'ar' ? '🌍 إنجليزي فقط (English News Desk)' : '🌍 English Only'}
+                    </option>
                   </select>
                 </div>
               </div>
 
-              <div className="pt-3">
+              {/* Row 4: Journalistic Style */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5 text-xs">
+                    <PenTool className="w-4 h-4 text-purple-600" />
+                    <span>{language === 'ar' ? 'الأسلوب الصحفي التحريري (Journalistic Style)' : 'Journalistic Style'}</span>
+                    <span className="text-rose-500">*</span>
+                  </label>
+                  <span className="text-[11px] text-slate-500 font-mono">
+                    {fbSettings.articleStyle === 'formal' ? 'Formal Standard' : fbSettings.articleStyle === 'concise' ? 'Concise Dispatch' : 'In-Depth Analysis'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  {language === 'ar'
+                    ? 'يحدد النبرة التحريرية، هيكل الفقرات، وعمق التحليل الصحفي المتبع أثناء كتابة الخبر.'
+                    : 'Sets the editorial tone, paragraph depth, and analytical rigor applied during AI news generation.'}
+                </p>
+
+                {/* 3 Clickable Journalistic Style Option Chips */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                  <div
+                    onClick={() => setFbSettings({ ...fbSettings, articleStyle: 'formal' })}
+                    className={`p-3 rounded-xl border-2 transition cursor-pointer flex flex-col justify-between ${
+                      fbSettings.articleStyle === 'formal'
+                        ? 'border-purple-600 bg-purple-50 dark:bg-purple-950/40 text-purple-950 dark:text-purple-100 shadow-xs'
+                        : 'border-slate-200 dark:border-stone-700 bg-slate-50 dark:bg-stone-800 text-slate-700 dark:text-slate-300 hover:border-purple-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-xs">📰 {language === 'ar' ? 'صحفي رسمي رصين' : 'Formal Journalistic'}</span>
+                      {fbSettings.articleStyle === 'formal' && <Check className="w-3.5 h-3.5 text-purple-600" />}
+                    </div>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                      {language === 'ar' ? 'معايير وكالات الأنباء، نبرة موضوعية متوازنة' : 'Authoritative standard newsroom tone'}
+                    </span>
+                  </div>
+
+                  <div
+                    onClick={() => setFbSettings({ ...fbSettings, articleStyle: 'concise' })}
+                    className={`p-3 rounded-xl border-2 transition cursor-pointer flex flex-col justify-between ${
+                      fbSettings.articleStyle === 'concise'
+                        ? 'border-purple-600 bg-purple-50 dark:bg-purple-950/40 text-purple-950 dark:text-purple-100 shadow-xs'
+                        : 'border-slate-200 dark:border-stone-700 bg-slate-50 dark:bg-stone-800 text-slate-700 dark:text-slate-300 hover:border-purple-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-xs">⚡ {language === 'ar' ? 'موجز وسريع' : 'Concise Dispatch'}</span>
+                      {fbSettings.articleStyle === 'concise' && <Check className="w-3.5 h-3.5 text-purple-600" />}
+                    </div>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                      {language === 'ar' ? 'برقيات عاجلة وحقائق مباشرة دون إطالة' : 'Fast-paced, bulleted breaking dispatches'}
+                    </span>
+                  </div>
+
+                  <div
+                    onClick={() => setFbSettings({ ...fbSettings, articleStyle: 'detailed' })}
+                    className={`p-3 rounded-xl border-2 transition cursor-pointer flex flex-col justify-between ${
+                      fbSettings.articleStyle === 'detailed'
+                        ? 'border-purple-600 bg-purple-50 dark:bg-purple-950/40 text-purple-950 dark:text-purple-100 shadow-xs'
+                        : 'border-slate-200 dark:border-stone-700 bg-slate-50 dark:bg-stone-800 text-slate-700 dark:text-slate-300 hover:border-purple-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-xs">🔍 {language === 'ar' ? 'تقرير تحليلي موسع' : 'In-Depth Analysis'}</span>
+                      {fbSettings.articleStyle === 'detailed' && <Check className="w-3.5 h-3.5 text-purple-600" />}
+                    </div>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                      {language === 'ar' ? 'تغطية معمقة تشمل الخلفيات والأبعاد السياسية' : 'Comprehensive investigative report with context'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-1">
+                  <select
+                    value={fbSettings.articleStyle}
+                    onChange={(e) => setFbSettings({ ...fbSettings, articleStyle: e.target.value as any })}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-stone-800 border-2 border-slate-300 dark:border-stone-600 rounded-xl focus:border-blue-600 focus:bg-white dark:focus:bg-stone-750 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-900 dark:text-white font-bold text-xs cursor-pointer"
+                  >
+                    <option value="formal" className="bg-white dark:bg-stone-900 text-slate-900 dark:text-white py-1">
+                      {language === 'ar' ? '📰 صحفي رسمي رصين (Formal News / المعيار الصحفي الموصى به)' : '📰 Formal Journalistic Standard'}
+                    </option>
+                    <option value="concise" className="bg-white dark:bg-stone-900 text-slate-900 dark:text-white py-1">
+                      {language === 'ar' ? '⚡ موجز وسريع (Concise Dispatch / برقيات عاجلة)' : '⚡ Concise Dispatch (Breaking News)'}
+                    </option>
+                    <option value="detailed" className="bg-white dark:bg-stone-900 text-slate-900 dark:text-white py-1">
+                      {language === 'ar' ? '🔍 تقرير تحليلي موسع (In-Depth Analysis / تغطية شاملة)' : '🔍 In-Depth Analysis & Background'}
+                    </option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Submit & Status Bar */}
+              <div className="pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-slate-200 dark:border-stone-700">
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-500 shadow-md transition-colors"
+                  disabled={isSavingSettings}
+                  className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-extrabold text-sm shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
                 >
-                  {language === 'ar' ? 'حفظ إعدادات الغرفة' : 'Save Newsroom Settings'}
+                  {isSavingSettings ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>{language === 'ar' ? 'جاري حفظ الإعدادات...' : 'Saving Newsroom Settings...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>{language === 'ar' ? 'حفظ إعدادات الغرفة بكل سلاسة' : 'Save Newsroom Settings'}</span>
+                    </>
+                  )}
                 </button>
+
+                {settingsSavedAt ? (
+                  <div className="flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-3.5 py-2 rounded-xl border border-emerald-200 dark:border-emerald-800">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>
+                      {language === 'ar'
+                        ? `آخر حفظ ناجح: ${new Date(settingsSavedAt).toLocaleTimeString('ar-EG')}`
+                        : `Saved at: ${new Date(settingsSavedAt).toLocaleTimeString()}`}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-[11px] text-slate-400">
+                    {language === 'ar' ? 'انقر على الزر لحفظ وتطبيق الإعدادات فورياً.' : 'Click to apply changes immediately.'}
+                  </span>
+                )}
               </div>
             </form>
           </div>

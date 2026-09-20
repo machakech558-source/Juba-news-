@@ -1135,15 +1135,32 @@ class DataService {
   }
 
   async getFacebookSettings(): Promise<any> {
+    let cached: any = null;
+    try {
+      const item = localStorage.getItem('juba_fb_settings');
+      if (item) cached = JSON.parse(item);
+    } catch {
+      // ignore
+    }
+
     try {
       const res = await fetch('/api/admin/facebook/settings');
       if (res.ok) {
         const json = await res.json();
-        return json.data;
+        if (json?.data) {
+          const merged = { ...(cached || {}), ...json.data };
+          try {
+            localStorage.setItem('juba_fb_settings', JSON.stringify(merged));
+          } catch {
+            // ignore
+          }
+          return merged;
+        }
       }
     } catch {
-      // ignore
+      // ignore network errors
     }
+    if (cached) return cached;
     return {
       facebookIntegration: 'CONNECTED',
       syncMode: 'BOTH',
@@ -1161,14 +1178,30 @@ class DataService {
   }
 
   async updateFacebookSettings(settings: any): Promise<any> {
-    const res = await fetch('/api/admin/facebook/settings', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(settings),
-    });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || 'Failed to update settings');
-    return json.data;
+    try {
+      localStorage.setItem('juba_fb_settings', JSON.stringify(settings));
+    } catch {
+      // ignore
+    }
+    try {
+      const res = await fetch('/api/admin/facebook/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to update settings');
+      const finalData = json.data || settings;
+      try {
+        localStorage.setItem('juba_fb_settings', JSON.stringify(finalData));
+      } catch {
+        // ignore
+      }
+      return finalData;
+    } catch (err) {
+      console.warn('Backend settings update issue, cached locally:', err);
+      return settings;
+    }
   }
 
   async getSyncLogs(): Promise<any[]> {

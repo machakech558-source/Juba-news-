@@ -233,6 +233,25 @@ export class MetaFacebookService {
     const permalink = post.permalink_url || 'https://www.facebook.com/share/1UpeZiXU5k/';
     const image = post.full_picture || 'https://images.unsplash.com/photo-1547471080-7cc2caa01a7e?w=1200&auto=format&fit=crop&q=80';
 
+    const currentSettings = db.facebookSettings;
+    const langStyleDirectives = `
+EDITORIAL POLICY CONFIGURATION:
+- Primary Language Setting: ${currentSettings.aiLanguage || 'both'} (${
+      currentSettings.aiLanguage === 'ar'
+        ? 'Arabic priority - craft full rich Arabic news, with accurate English title/summary'
+        : currentSettings.aiLanguage === 'en'
+        ? 'English priority - craft full rich English news, with accurate Arabic title/summary'
+        : 'Full bilingual - craft rich, fully realized journalistic text in both Arabic and English'
+    })
+- Journalistic Style: ${currentSettings.articleStyle || 'formal'} (${
+      currentSettings.articleStyle === 'concise'
+        ? 'Concise news dispatch - punchy, factual, fast-reading'
+        : currentSettings.articleStyle === 'detailed'
+        ? 'In-depth investigative/analytical journalism with rich context'
+        : 'Formal standard journalistic tone, authoritative and objective'
+    })
+`;
+
     const ai = this.getAiClient();
     if (ai && rawMessage.trim().length > 10) {
       try {
@@ -243,6 +262,8 @@ FACEBOOK POST DETAILS:
 - Original Content: "${rawMessage}"
 - Published at: ${postDate}
 - Source: Official Juba News Facebook Page (${permalink})
+
+${langStyleDirectives}
 
 EDITORIAL GUIDELINES:
 1. Detect whether the post contains actual news.
