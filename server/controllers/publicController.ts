@@ -53,24 +53,43 @@ export class PublicController {
 
       const total = articles.length;
       const startIndex = (page - 1) * limit;
-      const items = articles.slice(startIndex, startIndex + limit).map((a) => ({
-        id: a.id,
-        slug: a.slug,
-        titleEn: a.titleEn,
-        titleAr: a.titleAr,
-        subtitleEn: a.subtitleEn,
-        subtitleAr: a.subtitleAr,
-        featuredImage: a.featuredImage,
-        imageCaptionEn: a.imageCaptionEn,
-        imageCaptionAr: a.imageCaptionAr,
-        authorName: a.authorName,
-        authorRole: a.authorRole,
-        categoryId: a.categoryId,
-        tags: a.tags,
-        readingTimeMinutes: a.readingTimeMinutes,
-        views: a.views,
-        publishedAt: a.publishedAt,
-      }));
+      const items = articles.slice(startIndex, startIndex + limit).map((a) => {
+        const cat = db.categories.get(a.categoryId);
+        return {
+          id: a.id,
+          slug: a.slug,
+          titleEn: a.titleEn,
+          titleAr: a.titleAr,
+          subtitleEn: a.subtitleEn,
+          subtitleAr: a.subtitleAr,
+          excerptEn: a.subtitleEn || a.contentEn?.slice(0, 160) || '',
+          excerptAr: a.subtitleAr || a.contentAr?.slice(0, 160) || '',
+          contentEn: a.contentEn,
+          contentAr: a.contentAr,
+          featuredImage: a.featuredImage,
+          imageCaptionEn: a.imageCaptionEn,
+          imageCaptionAr: a.imageCaptionAr,
+          authorName: a.authorName,
+          authorRole: a.authorRole,
+          categoryId: a.categoryId,
+          categorySlug: cat?.slug || 'south-sudan',
+          categoryNameEn: cat?.nameEn || 'South Sudan',
+          categoryNameAr: cat?.nameAr || 'جنوب السودان',
+          tags: a.tags,
+          status: a.status,
+          isBreaking: a.isBreaking,
+          isTopHeadline: a.isTopHeadline,
+          isEditorsPick: a.isEditorsPick,
+          readingTimeMinutes: a.readingTimeMinutes,
+          views: a.views,
+          source: a.source,
+          sourceUrl: a.sourceUrl,
+          facebookPostId: a.facebookPostId,
+          publishedAt: a.publishedAt,
+          createdAt: a.createdAt,
+          updatedAt: a.updatedAt,
+        };
+      });
 
       res.json({
         success: true,

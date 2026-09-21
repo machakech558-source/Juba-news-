@@ -47,6 +47,12 @@ class DataService {
 
   constructor() {
     this.initData();
+    this.fetchServerArticles();
+    if (typeof window !== 'undefined') {
+      setInterval(() => {
+        this.fetchServerArticles();
+      }, 15000);
+    }
   }
 
   private initData() {
@@ -1340,42 +1346,113 @@ class DataService {
 
   async fetchServerArticles(): Promise<void> {
     try {
-      // First try to fetch all server articles from admin endpoint
+      // First try to fetch from public /api/news?limit=100
       let serverArticles: any[] = [];
       try {
-        const adminRes = await fetch('/api/v1/admin/articles?limit=100');
-        if (adminRes.ok) {
-          const adminJson = await adminRes.json();
-          if (Array.isArray(adminJson.data?.items)) {
-            serverArticles = adminJson.data.items;
-          }
-        }
-      } catch {
-        // admin endpoint fallback
-      }
-
-      // If admin endpoint didn't return articles, fetch from public /api/news
-      if (serverArticles.length === 0) {
         const res = await fetch('/api/news?limit=100');
         if (res.ok) {
           const json = await res.json();
           serverArticles = json.data?.items || json.data || [];
         }
+      } catch {
+        // public news fallback
+      }
+
+      // If public endpoint didn't return articles, try admin endpoint
+      if (serverArticles.length === 0) {
+        try {
+          const adminRes = await fetch('/api/v1/admin/articles?limit=100');
+          if (adminRes.ok) {
+            const adminJson = await adminRes.json();
+            if (Array.isArray(adminJson.data?.items)) {
+              serverArticles = adminJson.data.items;
+            }
+          }
+        } catch {
+          // ignore
+        }
       }
 
       if (Array.isArray(serverArticles) && serverArticles.length > 0) {
-        // Merge server articles into local state
         const map = new Map(this.articles.map((a) => [a.id, a]));
+        let hasArticleChanges = false;
+
         for (const s of serverArticles) {
-          map.set(s.id, {
-            ...map.get(s.id),
-            ...s,
-            status: s.status?.toUpperCase() === 'PUBLISHED' ? 'PUBLISHED' : (s.status?.toUpperCase() === 'DRAFT' ? 'DRAFT' : s.status),
-          });
+          const cat = this.categories.find((c) => c.id === s.categoryId || c.slug === s.categorySlug);
+          const existing = map.get(s.id);
+          const normalized: Article = {
+            id: s.id,
+            slug: s.slug,
+            titleEn: s.titleEn,
+            titleAr: s.titleAr,
+            subtitleEn: s.subtitleEn || '',
+            subtitleAr: s.subtitleAr || '',
+            excerptEn: s.excerptEn || s.subtitleEn || (s.contentEn ? s.contentEn.slice(0, 160) + '...' : ''),
+            excerptAr: s.excerptAr || s.subtitleAr || (s.contentAr ? s.contentAr.slice(0, 160) + '...' : ''),
+            contentEn: s.contentEn || s.excerptEn || '',
+            contentAr: s.contentAr || s.excerptAr || '',
+            featuredImage: s.featuredImage || 'https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=1200&auto=format&fit=crop&q=80',
+            imageCaptionEn: s.imageCaptionEn || '',
+            imageCaptionAr: s.imageCaptionAr || '',
+            authorId: s.authorId || 'admin-super-01',
+            authorName: s.authorName || 'Juba News Editorial Desk',
+            authorRole: s.authorRole || 'Editorial Desk',
+            categoryId: s.categoryId || (cat ? cat.id : 'cat-ss'),
+            categorySlug: s.categorySlug || (cat ? cat.slug : 'south-sudan'),
+            categoryNameEn: s.categoryNameEn || (cat ? cat.nameEn : 'South Sudan'),
+            categoryNameAr: s.categoryNameAr || (cat ? cat.nameAr : 'جنوب السودان'),
+            tags: Array.isArray(s.tags) ? s.tags : ['South Sudan', 'Juba News'],
+            status: (s.status?.toUpperCase() === 'DRAFT' ? 'DRAFT' : 'PUBLISHED'),
+            breaking: Boolean(s.isBreaking || s.breaking),
+            featured: Boolean(s.featured || s.isTopHeadline),
+            readingTimeMinutes: s.readingTimeMinutes || 3,
+            views: s.views || 0,
+            commentCount: s.commentCount || 0,
+            createdAt: s.createdAt || new Date().toISOString(),
+            updatedAt: s.updatedAt || new Date().toISOString(),
+            publishedAt: s.publishedAt || s.createdAt || new Date().toISOString(),
+            source: s.source || 'Website',
+            sourceUrl: s.sourceUrl,
+            facebookPostId: s.facebookPostId,
+          };
+
+          if (!existing || existing.status !== normalized.status || existing.titleAr !== normalized.titleAr) {
+            hasArticleChanges = true;
+          }
+          map.set(s.id, { ...existing, ...normalized });
         }
-        this.articles = Array.from(map.values());
-        this.save('juba_articles', this.articles);
-        this.notifyArticles();
+
+        if (hasArticleChanges) {
+          this.articles = Array.from(map.values()).sort(
+            (a, b) => new Date(b.publishedAt || b.createdAt).getTime() - new Date(a.publishedAt || a.createdAt).getTime()
+          );
+          this.save('juba_articles', this.articles);
+          this.notifyArticles();
+        }
+
+        // Auto-register any newly published breaking news from Facebook into ticker
+        for (const s of serverArticles) {
+          if ((s.isBreaking || s.breaking) && (s.status === 'PUBLISHED' || !s.status)) {
+            const alreadyExists = this.breakingNews.some(
+              (b) => b.titleAr === s.titleAr || b.titleEn === s.titleEn || (s.slug && b.articleSlug === s.slug)
+            );
+            if (!alreadyExists) {
+              const newBreakingItem: BreakingNewsItem = {
+                id: `bn-fb-${s.id}`,
+                titleEn: s.titleEn,
+                titleAr: s.titleAr,
+                articleSlug: s.slug,
+                active: true,
+                priority: 1,
+                createdAt: s.publishedAt || s.createdAt || new Date().toISOString(),
+                createdBy: 'Facebook Automation',
+              };
+              this.breakingNews = [newBreakingItem, ...this.breakingNews];
+              this.save('juba_breaking', this.breakingNews);
+              this.notifyBreakingNews();
+            }
+          }
+        }
       }
     } catch {
       // ignore
