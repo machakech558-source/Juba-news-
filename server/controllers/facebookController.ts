@@ -186,10 +186,17 @@ export class FacebookController {
    */
   public static async syncNow(req: AuthenticatedRequest, res: Response) {
     try {
-      console.log(`🔄 Manual Facebook Sync triggered by admin: ${req.admin?.email || 'Admin'}`);
+      const limit = req.body?.limit ? parseInt(String(req.body.limit), 10) : 20;
+      const forceFreshBatch = Boolean(req.body?.forceFreshBatch);
+      const autoPublish = req.body?.autoPublish !== undefined ? Boolean(req.body.autoPublish) : undefined;
+
+      console.log(`🔄 Manual Facebook Sync triggered by admin: ${req.admin?.email || 'Admin'}, limit: ${limit}, forceFreshBatch: ${forceFreshBatch}`);
       const result = await MetaFacebookService.syncPagePosts({
         manual: true,
         adminEmail: req.admin?.email,
+        limit,
+        forceFreshBatch,
+        autoPublish,
       });
 
       return res.status(200).json({

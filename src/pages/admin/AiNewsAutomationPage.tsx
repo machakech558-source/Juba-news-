@@ -29,7 +29,8 @@ import {
   PenTool,
   Hash,
   Bookmark,
-  Cpu
+  Cpu,
+  Download
 } from 'lucide-react';
 import { useThemeLanguage } from '../../contexts/ThemeLanguageContext';
 import { useRouter } from '../../contexts/RouterContext';
@@ -166,19 +167,26 @@ export const AiNewsAutomationPage: React.FC = () => {
 
   const failedPosts = fbPosts.filter((p) => p.processingStatus === 'failed');
 
-  // Manual Synchronization Handler
-  const handleSyncFacebookNow = async () => {
+  // Batch count state for customizable synchronization
+  const [syncBatchSize, setSyncBatchSize] = useState<number>(10);
+
+  // Manual Synchronization Handler with configurable batch size and fresh batch options
+  const handleSyncFacebookNow = async (batchCount?: number, forceFresh: boolean = false) => {
     setIsSyncing(true);
     setAlertError(null);
     try {
-      const result = await dataService.syncFacebookNow();
+      const count = batchCount || syncBatchSize;
+      const result = await dataService.syncFacebookNow({
+        limit: count,
+        forceFreshBatch: forceFresh,
+      });
       setSyncResult(result);
       setSyncModalOpen(true);
       await loadAllData();
       setAlertSuccess(
         language === 'ar'
-          ? `تمت المزامنة بنجاح! تم استيراد ${result.importedCount} منشورات وتخطي ${result.skippedCount} مكررات.`
-          : `Sync completed! Imported ${result.importedCount} posts, skipped ${result.skippedCount} duplicates.`
+          ? `تمت المزامنة بنجاح! تم استيراد ${result.importedCount} منشورات وتخطي ${result.skippedCount} مكررات (${result.publishedCount || 0} نُشرت فورياً).`
+          : `Sync completed! Imported ${result.importedCount} posts, skipped ${result.skippedCount} duplicates (${result.publishedCount || 0} published live).`
       );
     } catch (err: any) {
       setAlertError(err.message || 'Sync failed');
@@ -537,15 +545,48 @@ export const AiNewsAutomationPage: React.FC = () => {
               <Plus className="w-4 h-4 text-blue-400" />
               {language === 'ar' ? 'استيراد منشور يدوي' : 'Import Single Post'}
             </button>
+            {/* Batch Size Selector */}
+            <div className="flex items-center gap-1 bg-slate-800/90 px-2 py-1.5 rounded-xl border border-slate-700/80">
+              <span className="text-[11px] text-slate-300 font-semibold px-1">
+                {language === 'ar' ? 'الدفعة:' : 'Batch:'}
+              </span>
+              {[5, 10, 20, 30].map((size) => (
+                <button
+                  key={size}
+                  type="button"
+                  onClick={() => setSyncBatchSize(size)}
+                  className={`px-2 py-0.5 text-xs font-bold rounded-lg transition-all ${
+                    syncBatchSize === size
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-700/60'
+                  }`}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+
+            {/* Standard Sync Button */}
             <button
-              onClick={handleSyncFacebookNow}
+              onClick={() => handleSyncFacebookNow(syncBatchSize, false)}
               disabled={isSyncing}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-semibold shadow-lg shadow-blue-600/30 transition-all active:scale-95"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-semibold shadow-lg shadow-blue-600/30 transition-all active:scale-95 cursor-pointer"
             >
               <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
               {isSyncing
                 ? language === 'ar' ? 'جاري المزامنة...' : 'Syncing...'
-                : language === 'ar' ? 'مزامنة فيسبوك الآن' : 'Sync Facebook Now'}
+                : language === 'ar' ? `مزامنة فيسبوك (${syncBatchSize})` : `Sync Facebook (${syncBatchSize})`}
+            </button>
+
+            {/* Import Additional Fresh Posts Button */}
+            <button
+              onClick={() => handleSyncFacebookNow(syncBatchSize, true)}
+              disabled={isSyncing}
+              title={language === 'ar' ? 'سحب منشورات إضافية جديدة دون قيود التكرار' : 'Fetch additional fresh posts'}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white text-sm font-semibold shadow-lg shadow-emerald-600/30 transition-all active:scale-95 cursor-pointer"
+            >
+              <Download className={`w-4 h-4 ${isSyncing ? 'animate-bounce' : ''}`} />
+              <span>{language === 'ar' ? `استيراد ${syncBatchSize} إضافية 📥` : `Import ${syncBatchSize} More 📥`}</span>
             </button>
           </div>
         </div>
@@ -941,15 +982,25 @@ export const AiNewsAutomationPage: React.FC = () => {
                   : 'Log of posts imported from the page with AI processing and editorial status'}
               </p>
             </div>
-            <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                placeholder={language === 'ar' ? 'بحث في المنشورات...' : 'Search posts...'}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder={language === 'ar' ? 'بحث في المنشورات...' : 'Search posts...'}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 w-52 sm:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <button
+                onClick={() => handleSyncFacebookNow(10, true)}
+                disabled={isSyncing}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-semibold shadow-sm transition-all"
+              >
+                <Download className={`w-3.5 h-3.5 ${isSyncing ? 'animate-bounce' : ''}`} />
+                {language === 'ar' ? 'استيراد 10 جديدة' : 'Import 10 Fresh'}
+              </button>
             </div>
           </div>
 
@@ -1848,30 +1899,30 @@ export const AiNewsAutomationPage: React.FC = () => {
             </div>
 
             {/* Sync Counters Grid */}
-            <div className="grid grid-cols-2 gap-3 text-center">
-              <div className="bg-blue-50 border border-blue-100 p-3 rounded-xl">
-                <span className="text-xs text-blue-700 block font-medium">
-                  {language === 'ar' ? 'منشورات جديدة مستوردة' : 'Imported'}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+              <div className="bg-blue-50 border border-blue-100 p-2.5 rounded-xl">
+                <span className="text-[11px] text-blue-700 block font-medium">
+                  {language === 'ar' ? 'منشورات مستوردة' : 'Imported'}
                 </span>
-                <span className="text-2xl font-black text-blue-900">{syncResult.importedCount}</span>
+                <span className="text-xl font-black text-blue-900">{syncResult.importedCount}</span>
               </div>
-              <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl">
-                <span className="text-xs text-slate-600 block font-medium">
-                  {language === 'ar' ? 'مكررات تم تخطيها' : 'Skipped Duplicates'}
+              <div className="bg-emerald-50 border border-emerald-100 p-2.5 rounded-xl">
+                <span className="text-[11px] text-emerald-700 block font-medium">
+                  {language === 'ar' ? 'نُشرت فورياً' : 'Published Live'}
                 </span>
-                <span className="text-2xl font-black text-slate-700">{syncResult.skippedCount}</span>
+                <span className="text-xl font-black text-emerald-900">{syncResult.publishedCount || 0}</span>
               </div>
-              <div className="bg-amber-50 border border-amber-100 p-3 rounded-xl">
-                <span className="text-xs text-amber-700 block font-medium">
-                  {language === 'ar' ? 'مسودات AI جديدة' : 'AI Drafts Created'}
+              <div className="bg-amber-50 border border-amber-100 p-2.5 rounded-xl">
+                <span className="text-[11px] text-amber-700 block font-medium">
+                  {language === 'ar' ? 'مسودات AI جديدة' : 'AI Drafts'}
                 </span>
-                <span className="text-2xl font-black text-amber-900">{syncResult.draftsCreated}</span>
+                <span className="text-xl font-black text-amber-900">{syncResult.draftsCreated}</span>
               </div>
-              <div className="bg-rose-50 border border-rose-100 p-3 rounded-xl">
-                <span className="text-xs text-rose-700 block font-medium">
-                  {language === 'ar' ? 'أخطاء / متعثر' : 'Failed'}
+              <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
+                <span className="text-[11px] text-slate-600 block font-medium">
+                  {language === 'ar' ? 'مكررات متخطاة' : 'Skipped'}
                 </span>
-                <span className="text-2xl font-black text-rose-800">{syncResult.failedCount}</span>
+                <span className="text-xl font-black text-slate-700">{syncResult.skippedCount}</span>
               </div>
             </div>
 
@@ -1901,10 +1952,21 @@ export const AiNewsAutomationPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="pt-2 flex justify-end">
+            <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-slate-100">
+              <button
+                onClick={() => {
+                  setSyncModalOpen(false);
+                  handleSyncFacebookNow(10, true);
+                }}
+                disabled={isSyncing}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>{language === 'ar' ? 'استيراد 10 منشورات إضافية الآن 📥' : 'Import 10 More Posts Now 📥'}</span>
+              </button>
               <button
                 onClick={() => setSyncModalOpen(false)}
-                className="px-5 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-500"
+                className="px-5 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-semibold cursor-pointer"
               >
                 {language === 'ar' ? 'إغلاق ومتابعة المراجعة' : 'Close & Continue'}
               </button>
