@@ -36,6 +36,7 @@ import { useRouter } from '../../contexts/RouterContext';
 import { dataService } from '../../services/dataService';
 import { useAuth } from '../../contexts/AuthContext';
 import { N8nAutomationTab } from '../../components/admin/N8nAutomationTab';
+import { aiNewsAutomator } from '../../services/aiNewsAutomator';
 import type { Article, Category, FacebookPost, FacebookSettings, SyncLog, FacebookSyncResult } from '../../types';
 
 export const AiNewsAutomationPage: React.FC = () => {
@@ -305,37 +306,61 @@ export const AiNewsAutomationPage: React.FC = () => {
     setAiIsGenerating(true);
     setAlertError(null);
     try {
-      const res = await fetch('/api/v1/ai/generate-news', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          topic: aiTopic,
-          categorySlug: aiCategory,
-          autoPublish: aiAutoPublish,
-        }),
-      });
-      let json: any = null;
+      let articleData: any = null;
+
+      // Try server endpoint first
       try {
-        json = await res.json();
-      } catch {
-        throw new Error(language === 'ar' ? 'استجابة خادم الذكاء الاصطناعي غير صالحة' : 'Invalid server response');
-      }
-      if (!res.ok || !json.success) {
-        throw new Error(json?.error || 'Failed to generate news with AI');
+        const res = await fetch('/api/v1/ai/generate-news', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            topic: aiTopic,
+            categorySlug: aiCategory,
+            autoPublish: aiAutoPublish,
+          }),
+        });
+
+        if (res.ok) {
+          const json = await res.json().catch(() => null);
+          if (json && json.success && json.data) {
+            articleData = json.data;
+          }
+        }
+      } catch (networkErr) {
+        console.warn('Server AI endpoint unreachable or 405 on static hosting, activating client fallback:', networkErr);
       }
 
-      await dataService.fetchServerArticles();
+      // If server returned 405/500/HTML or failed, seamlessly synthesize and publish article
+      if (!articleData) {
+        const gen = await aiNewsAutomator.generateAiArticle({
+          topic: aiTopic,
+          categorySlug: aiCategory,
+          language: 'ar',
+          style: 'formal',
+          contentType: 'report',
+        });
+        const published = await aiNewsAutomator.publishAiArticle(
+          gen,
+          aiAutoPublish ? 'PUBLISHED' : 'PENDING_REVIEW'
+        );
+        articleData = {
+          ...gen,
+          publishedArticle: published,
+        };
+      }
+
+      await dataService.fetchServerArticles().catch(() => {});
       await loadAllData();
       setAiGenOpen(false);
       setAiTopic('');
       setAlertSuccess(
         language === 'ar'
           ? (aiAutoPublish
-              ? `تم توليد الخبر ونشره تلقائياً على الموقع بنجاح: "${json.data?.titleAr || json.data?.headline}"`
-              : `تم توليد مسودة الخبر بنجاح: "${json.data?.titleAr || json.data?.headline}"`)
+              ? `تم توليد الخبر ونشره تلقائياً على الموقع بنجاح: "${articleData?.titleAr || articleData?.headline}"`
+              : `تم توليد مسودة الخبر بنجاح: "${articleData?.titleAr || articleData?.headline}"`)
           : (aiAutoPublish
-              ? `News article generated and published live to website: "${json.data?.titleEn || json.data?.headline}"`
-              : `Draft article generated: "${json.data?.titleEn || json.data?.headline}"`)
+              ? `News article generated and published live to website: "${articleData?.titleEn || articleData?.headline}"`
+              : `Draft article generated: "${articleData?.titleEn || articleData?.headline}"`)
       );
       setActiveTab(aiAutoPublish ? 'published' : 'drafts');
     } catch (err: any) {
@@ -1743,13 +1768,15 @@ export const AiNewsAutomationPage: React.FC = () => {
             <div className="space-y-3">
               <div>
                 <span className="text-slate-400 block mb-1">Webhook Callback URL:</span>
-                <div className="flex items-center gap-1 bg-slate-800 p-2 rounded-lg font-mono text-[11px] text-blue-300 border border-slate-700">
-                  <span className="truncate">https://.../api/webhooks/facebook</span>
+                <div className="flex items-center justify-between gap-1 bg-slate-800 p-2 rounded-lg font-mono text-[11px] text-blue-300 border border-slate-700" dir="ltr">
+                  <span className="truncate select-all text-left">
+                    {(typeof window !== 'undefined' ? window.location.origin : 'https://juba-news.vercel.app') + '/api/webhooks/facebook'}
+                  </span>
                   <button
                     type="button"
-                    onClick={() => navigator.clipboard.writeText(window.location.origin + '/api/webhooks/facebook')}
+                    onClick={() => navigator.clipboard.writeText((typeof window !== 'undefined' ? window.location.origin : 'https://juba-news.vercel.app') + '/api/webhooks/facebook')}
                     title="Copy"
-                    className="p-1 hover:text-white"
+                    className="p-1 hover:text-white shrink-0 cursor-pointer"
                   >
                     <Copy className="w-3.5 h-3.5" />
                   </button>

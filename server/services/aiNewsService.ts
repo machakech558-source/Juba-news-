@@ -240,7 +240,8 @@ Generate the complete dispatch structured across all 9 editorial sections now in
         const cleaned = responseText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
         try {
           parsed = JSON.parse(cleaned);
-        } catch {
+        } catch (parseErr) {
+          console.error('Failed to parse Gemini response as JSON. Raw responseText:', responseText);
           parsed = null;
         }
       }

@@ -22,7 +22,8 @@ import {
   Layers,
   Sparkles,
   HelpCircle,
-  Info
+  Info,
+  Lock
 } from 'lucide-react';
 import { useThemeLanguage } from '../../contexts/ThemeLanguageContext';
 import { useRouter } from '../../contexts/RouterContext';
@@ -77,7 +78,7 @@ export const N8nAutomationTab: React.FC<N8nAutomationTabProps> = ({
     }
   }, []);
 
-  const webhookUrl = `${currentOrigin || 'https://jubanews.com'}/api/integrations/n8n/facebook-post`;
+  const webhookUrl = `${currentOrigin || 'https://juba-news.vercel.app'}/api/integrations/n8n/facebook-post`;
   const n8nApiKey = fbSettings.n8nWebhookSecret || 'juba_n8n_sec_2025';
 
   // Load workflow template on mount
@@ -334,13 +335,23 @@ export const N8nAutomationTab: React.FC<N8nAutomationTabProps> = ({
                 POST
               </span>
             </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                readOnly
-                value={webhookUrl}
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-stone-800 border border-slate-300 dark:border-stone-700 rounded-xl text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none"
-              />
+            <div className="flex items-center gap-2" dir="ltr">
+              <div className="relative flex-1 flex items-center min-w-0">
+                <div className="absolute left-2.5 z-10 flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100/90 dark:bg-emerald-950/90 px-2 py-0.5 rounded-lg border border-emerald-300 dark:border-emerald-700 pointer-events-none select-none">
+                  <Lock className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                  <span>HTTPS</span>
+                </div>
+                <input
+                  type="text"
+                  readOnly
+                  dir="ltr"
+                  value={webhookUrl}
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                  onFocus={(e) => e.target.select()}
+                  className="w-full pl-22 pr-3.5 py-2.5 bg-slate-50 dark:bg-stone-800 border border-slate-300 dark:border-stone-700 rounded-xl text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-left select-all cursor-pointer"
+                  title={language === 'ar' ? 'انقر لتحديد الرابط كاملاً' : 'Click to select full URL'}
+                />
+              </div>
               <button
                 type="button"
                 onClick={() => copyToClipboard(webhookUrl, setCopiedUrl)}
@@ -350,11 +361,16 @@ export const N8nAutomationTab: React.FC<N8nAutomationTabProps> = ({
                 <span>{copiedUrl ? (language === 'ar' ? 'تم النسخ!' : 'Copied!') : (language === 'ar' ? 'نسخ' : 'Copy')}</span>
               </button>
             </div>
-            <p className="text-[11px] text-slate-500">
-              {language === 'ar'
-                ? 'ضع هذا الرابط في عقدة n8n في حقل URL مع اختيار طريقة POST.'
-                : 'Insert this URL in the n8n HTTP Request node with POST method.'}
-            </p>
+            <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-500 gap-1">
+              <span>
+                {language === 'ar'
+                  ? 'ضع هذا الرابط في عقدة n8n في حقل URL مع اختيار طريقة POST.'
+                  : 'Insert this URL in the n8n HTTP Request node with POST method.'}
+              </span>
+              <span className="font-mono text-[10px] text-indigo-600 dark:text-indigo-400 font-bold bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800" dir="ltr">
+                METHOD: POST
+              </span>
+            </div>
           </div>
 
           {/* n8n Webhook Secret Key */}
@@ -373,18 +389,22 @@ export const N8nAutomationTab: React.FC<N8nAutomationTabProps> = ({
                 <span>{language === 'ar' ? 'تجديد المفتاح' : 'Regenerate'}</span>
               </button>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="relative w-full">
+            <div className="flex items-center gap-2" dir="ltr">
+              <div className="relative flex-1 flex items-center min-w-0">
                 <input
                   type={showApiKey ? 'text' : 'password'}
                   readOnly
+                  dir="ltr"
                   value={n8nApiKey}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-stone-800 border border-slate-300 dark:border-stone-700 rounded-xl text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none pr-10"
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                  onFocus={(e) => e.target.select()}
+                  className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 dark:bg-stone-800 border border-slate-300 dark:border-stone-700 rounded-xl text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-left select-all cursor-pointer"
                 />
                 <button
                   type="button"
                   onClick={() => setShowApiKey(!showApiKey)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+                  className="absolute right-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                  title={showApiKey ? 'إخفاء' : 'إظهار'}
                 >
                   {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -418,10 +438,10 @@ export const N8nAutomationTab: React.FC<N8nAutomationTabProps> = ({
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 font-mono text-[11px]">
-            <div className="bg-slate-900 text-slate-200 p-3 rounded-lg overflow-x-auto">
-              <div className="text-slate-400 text-[10px] mb-1 font-sans"># Required HTTP Headers</div>
-              <div>POST /api/integrations/n8n/facebook-post</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 font-mono text-[11px]" dir="ltr">
+            <div className="bg-slate-900 text-slate-200 p-3 rounded-lg overflow-x-auto text-left">
+              <div className="text-slate-400 text-[10px] mb-1 font-sans"># Required HTTP Request & Headers</div>
+              <div className="text-cyan-300 font-bold break-all">POST {webhookUrl}</div>
               <div className="text-amber-300">Content-Type: application/json</div>
               <div className="text-emerald-300">X-N8N-API-KEY: {n8nApiKey}</div>
             </div>

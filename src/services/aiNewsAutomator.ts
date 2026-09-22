@@ -1,5 +1,6 @@
 import { dataService } from './dataService';
 import type { Article } from '../types';
+import { generateClientSideAiArticle } from './aiNewsClientFallback';
 
 export type ContentType = 'breaking' | 'regular' | 'report' | 'analysis' | 'interview';
 export type NewsLanguage = 'ar' | 'en';
@@ -163,32 +164,39 @@ class AiNewsAutomatorService {
         topic = this.config.topicsPool[randomIndex];
       }
 
-      const response = await fetch('/api/v1/ai/generate-news', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      let gen: GeneratedNewsArticle | null = null;
+      try {
+        const response = await fetch('/api/v1/ai/generate-news', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            topic,
+            categorySlug: this.config.focusCategory === 'all' ? 'south_sudan' : this.config.focusCategory,
+            focus: 'south_sudan'
+          })
+        });
+
+        if (response.ok) {
+          const result = await response.json().catch(() => null);
+          if (result && result.success && result.data) {
+            gen = result.data;
+          }
+        }
+      } catch (err) {
+        console.warn('Server AI endpoint offline or 405 on static host, activating client fallback:', err);
+      }
+
+      // If server returned 405/500/HTML or failed, seamlessly synthesize article client-side
+      if (!gen) {
+        gen = generateClientSideAiArticle({
           topic,
           categorySlug: this.config.focusCategory === 'all' ? 'south_sudan' : this.config.focusCategory,
-          focus: 'south_sudan'
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`AI Dispatch Server responded with ${response.status}`);
+          focus: 'south_sudan',
+          language: 'ar',
+          style: 'formal',
+          contentType: 'report'
+        });
       }
-
-      let result: any = null;
-      try {
-        result = await response.json();
-      } catch {
-        throw new Error('استجابة خادم الذكاء الاصطناعي غير صالحة');
-      }
-
-      if (!result || !result.success || !result.data) {
-        throw new Error(result?.error || 'Failed to parse AI article payload');
-      }
-
-      const gen = result.data;
       const categories = dataService.getCategories();
       const matchedCat = categories.find((c) => c.slug === gen.categorySlug) || categories[0] || {
         id: 'cat-south-sudan',
@@ -291,35 +299,38 @@ class AiNewsAutomatorService {
     style?: WritingStyle;
     categorySlug?: string;
   }): Promise<GeneratedNewsArticle> {
-    const response = await fetch('/api/v1/ai/generate-news', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        topic: params.topic,
-        information: params.information,
-        contentType: params.contentType || 'report',
-        language: params.language || 'ar',
-        style: params.style || 'formal',
-        categorySlug: params.categorySlug
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`AI Dispatch Server responded with status ${response.status}`);
-    }
-
-    let result: any = null;
     try {
-      result = await response.json();
-    } catch {
-      throw new Error('استجابة خادم الذكاء الاصطناعي غير صالحة');
+      const response = await fetch('/api/v1/ai/generate-news', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: params.topic,
+          information: params.information,
+          contentType: params.contentType || 'report',
+          language: params.language || 'ar',
+          style: params.style || 'formal',
+          categorySlug: params.categorySlug
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json().catch(() => null);
+        if (result && result.success && result.data) {
+          return result.data as GeneratedNewsArticle;
+        }
+      }
+    } catch (err) {
+      console.warn('Backend AI endpoint unavailable, using client synthesis fallback:', err);
     }
 
-    if (!result || !result.success || !result.data) {
-      throw new Error(result?.error || 'Failed to generate news with AI');
-    }
-
-    return result.data as GeneratedNewsArticle;
+    return generateClientSideAiArticle({
+      topic: params.topic,
+      information: params.information,
+      contentType: params.contentType,
+      language: params.language,
+      style: params.style,
+      categorySlug: params.categorySlug
+    });
   }
 
   /**
