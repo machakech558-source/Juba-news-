@@ -304,12 +304,15 @@ Respond ONLY with valid JSON matching this exact structure:
 }`;
 
         let parsed: any = null;
-        const candidateModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
-        for (const model of candidateModels) {
+        const candidateModels = [
+          { name: 'gemini-3.1-flash-lite', timeout: 4500 },
+          { name: 'gemini-3.8-flash', timeout: 3500 },
+        ];
+        for (const candidate of candidateModels) {
           try {
-            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI timeout')), 7000));
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI timeout')), candidate.timeout));
             const generatePromise = ai.models.generateContent({
-              model,
+              model: candidate.name,
               contents: prompt,
               config: {
                 responseMimeType: 'application/json',
@@ -332,7 +335,7 @@ Respond ONLY with valid JSON matching this exact structure:
             }
             if (parsed) break;
           } catch (modelErr) {
-            console.warn(`[MetaFacebookService] Model ${model} error, trying next:`, modelErr);
+            console.warn(`[MetaFacebookService] Model ${candidate.name} error, trying next:`, modelErr);
           }
         }
 
